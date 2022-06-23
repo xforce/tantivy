@@ -60,6 +60,20 @@ impl FastFieldsWriter {
                         None => {}
                     }
                 }
+                FieldType::DateTime(ref options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
+                        let mut fast_field_writer = IntFastFieldWriter::new(field);
+                        let default_value = fast_field_default_value(field_entry);
+                        fast_field_writer.set_val_if_missing(default_value);
+                        single_value_writers.push(fast_field_writer);
+                    }
+                    Some(Cardinality::MultiValues) => {
+                        let fast_field_writer =
+                            MultiValuedFastFieldWriter::new(field, FastFieldType::Numeric);
+                        multi_values_writers.push(fast_field_writer);
+                    }
+                    None => {}
+                },
                 FieldType::Facet(_) => {
                     let fast_field_writer =
                         MultiValuedFastFieldWriter::new(field, FastFieldType::Facet);

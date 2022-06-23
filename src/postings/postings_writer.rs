@@ -86,6 +86,7 @@ pub(crate) fn serialize_postings(
             | FieldType::I64(_)
             | FieldType::F64(_)
             | FieldType::Date(_)
+            | FieldType::DateTime(_)
             | FieldType::Bool(_) => {}
             FieldType::Bytes(_) => {}
             FieldType::JsonObject(_) => {}

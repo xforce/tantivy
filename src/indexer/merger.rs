@@ -308,6 +308,16 @@ impl IndexMerger {
                     }
                     None => {}
                 },
+                FieldType::DateTime(ref options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
+                        self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+                    }
+                    Some(Cardinality::MultiValues) => {
+                        self.write_multi_fast_field(field, fast_field_serializer, doc_id_mapping)?;
+                    }
+                    None => {}
+                },
+
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;

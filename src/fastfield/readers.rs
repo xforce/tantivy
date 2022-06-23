@@ -23,6 +23,7 @@ pub(crate) enum FastType {
     F64,
     Bool,
     Date,
+    DateTime,
 }
 
 pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
@@ -42,6 +43,9 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Date(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
+        FieldType::DateTime(options) => options
+            .get_fastfield_cardinality()
+            .map(|cardinality| (FastType::DateTime, cardinality)),
         FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
@@ -159,6 +163,14 @@ impl FastFieldReaders {
     /// If `field` is not a date fast field, this method returns an Error.
     pub fn date(&self, field: Field) -> crate::Result<DynamicFastFieldReader<DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
+    }
+
+    /// Returns the `date` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a date fast field, this method returns an Error.
+    pub fn datetime(&self, field: Field) -> crate::Result<DynamicFastFieldReader<DateTime>> {
+        self.check_type(field, FastType::DateTime, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
 

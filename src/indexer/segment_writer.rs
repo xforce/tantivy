@@ -252,6 +252,13 @@ impl SegmentWriter {
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                 }
+                FieldType::DateTime(_) => {
+                    for value in values {
+                        let date_val = value.as_datetime().ok_or_else(make_schema_error)?;
+                        term_buffer.set_u64(date_val.to_u64());
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
+                    }
+                }
                 FieldType::I64(_) => {
                     for value in values {
                         let i64_val = value.as_i64().ok_or_else(make_schema_error)?;

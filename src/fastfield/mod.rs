@@ -31,7 +31,7 @@ pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
-use crate::{DateTime, DocId};
+use crate::{DateTime, DateTimePrecision, DocId};
 
 mod alive_bitset;
 mod bytes;
@@ -58,6 +58,14 @@ pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
     ///
     /// Internally all fast field values are encoded as u64.
     fn from_u64(val: u64) -> Self;
+
+    /// Converts a value from u64 with precision.
+    /// The default impl just uses a second precision
+    ///
+    /// Internally all fast field values are encoded as u64.
+    fn from_u64_with_precision(val: u64, _: DateTimePrecision) -> Self {
+        Self::from_u64(val)
+    }
 
     /// Converts a value to u64.
     ///
@@ -162,10 +170,7 @@ impl FastValue for f64 {
 
 impl FastValue for bool {
     fn from_u64(val: u64) -> Self {
-        match val {
-            0 => false,
-            _ => true,
-        }
+        !matches!(val, 0)
     }
 
     fn to_u64(&self) -> u64 {
@@ -197,6 +202,11 @@ impl FastValue for DateTime {
         Self::from_unix_timestamp(unix_timestamp)
     }
 
+    fn from_u64_with_precision(timestamp_u64: u64, precision: DateTimePrecision) -> Self {
+        let unix_timestamp = i64::from_u64(timestamp_u64);
+        Self::from_timestamp_with_precision(unix_timestamp, precision)
+    }
+
     fn to_u64(&self) -> u64 {
         self.into_unix_timestamp().to_u64()
     }
@@ -223,8 +233,11 @@ fn value_to_u64(value: &Value) -> u64 {
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
         Value::Bool(val) => val.to_u64(),
-        Value::Date(val) => val.to_u64(),
-        _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
+        Value::Date(val) | Value::DateTime(val) => val.to_u64(),
+        _ => panic!(
+            "Expected a u64/i64/f64/bool/date/datetime field, got {:?} ",
+            value
+        ),
     }
 }
 
@@ -853,7 +866,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 36);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
@@ -889,7 +902,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 48);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();
@@ -923,7 +936,7 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         assert_eq!(file.len(), 35);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(field).unwrap();

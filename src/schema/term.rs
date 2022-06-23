@@ -397,6 +397,10 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
         Type::Date => {
             write_opt(f, get_fast_type::<DateTime>(bytes))?;
         }
+        Type::DateTime => {
+            // TODO-evan: show in a format
+            write_opt(f, get_fast_type::<DateTime>(bytes))?;
+        }
         Type::Facet => {
             let facet_str = str::from_utf8(bytes)
                 .ok()
