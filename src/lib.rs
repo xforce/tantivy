@@ -135,7 +135,6 @@ pub use time;
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
-pub use crate::schema::{DateTime, DateTimeFormat, DateTimeOptions, DateTimePrecision};
 
 /// Tantivy result.
 ///
@@ -193,7 +192,9 @@ pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
-pub use crate::schema::{Document, Term};
+pub use crate::schema::{
+    DateTime, DateTimeFormat, DateTimeOptions, DateTimePrecision, Document, Term,
+};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 4;

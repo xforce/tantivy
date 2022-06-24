@@ -453,18 +453,10 @@ impl QueryParser {
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::DateTime(ref options) => {
-                let date_time_parsers = options.get_parsers();
-                let mut date_time_parsers_guard = date_time_parsers.lock().unwrap();
                 let utc_datetime = if let Ok(number_i64) = i64::from_str(phrase) {
-                    date_time_parsers_guard
-                        .as_mut()
-                        .unwrap()
-                        .parse_number(number_i64)
+                    options.parse_number(number_i64)
                 } else {
-                    date_time_parsers_guard
-                        .as_mut()
-                        .unwrap()
-                        .parse_string(phrase.to_string())
+                    options.parse_string(phrase.to_string())
                 }
                 .map_err(QueryParserError::DateTimeFormatError)?;
                 let dt_term = Term::from_field_date(

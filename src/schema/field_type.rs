@@ -295,53 +295,49 @@ impl FieldType {
     /// target field is a `Str`, this method will return an Error.
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
-            JsonValue::String(field_text) => {
-                match self {
-                    FieldType::Date(_) => {
-                        let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
-                            .map_err(|_err| ValueParsingError::TypeError {
+            JsonValue::String(field_text) => match self {
+                FieldType::Date(_) => {
+                    let dt_with_fixed_tz =
+                        OffsetDateTime::parse(&field_text, &Rfc3339).map_err(|_err| {
+                            ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
-                            })?;
-                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
-                    }
-                    FieldType::DateTime(options) => {
-                        let date_time_parsers = options.get_parsers();
-                        let mut date_time_parsers_guard = date_time_parsers.lock().unwrap();
-                        let date_time = date_time_parsers_guard
-                            .as_mut()
-                            .unwrap()
-                            .parse_string(field_text.clone())
-                            .map_err(|error| ValueParsingError::ParseError {
-                                error,
-                                json: JsonValue::String(field_text),
-                            })?;
-                        Ok(Value::DateTime(DateTime::from_utc_with_precision(
-                            date_time,
-                            options.get_precision(),
-                        )))
-                    }
-                    FieldType::Str(_) => Ok(Value::Str(field_text)),
-                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                        Err(ValueParsingError::TypeError {
-                            expected: "an integer",
-                            json: JsonValue::String(field_text),
-                        })
-                    }
-                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
-                        expected: "a boolean",
-                        json: JsonValue::String(field_text),
-                    }),
-                    FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => base64::decode(&field_text)
-                        .map(Value::Bytes)
-                        .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                        expected: "a json object",
-                        json: JsonValue::String(field_text),
-                    }),
+                            }
+                        })?;
+                    Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                 }
-            }
+                FieldType::DateTime(ref options) => {
+                    let date_time = options.parse_string(field_text.clone()).map_err(|error| {
+                        ValueParsingError::ParseError {
+                            error,
+                            json: JsonValue::String(field_text),
+                        }
+                    })?;
+                    Ok(Value::DateTime(DateTime::from_utc_with_precision(
+                        date_time,
+                        options.get_precision(),
+                    )))
+                }
+                FieldType::Str(_) => Ok(Value::Str(field_text)),
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
+                    Err(ValueParsingError::TypeError {
+                        expected: "an integer",
+                        json: JsonValue::String(field_text),
+                    })
+                }
+                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                    expected: "a boolean",
+                    json: JsonValue::String(field_text),
+                }),
+                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                FieldType::Bytes(_) => base64::decode(&field_text)
+                    .map(Value::Bytes)
+                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: JsonValue::String(field_text),
+                }),
+            },
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
@@ -353,21 +349,17 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::DateTime(opts) => {
+                FieldType::DateTime(options) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
-                        let date_time_parsers = opts.get_parsers();
-                        let mut date_time_parsers_guard = date_time_parsers.lock().unwrap();
-                        let date_time = date_time_parsers_guard
-                            .as_mut()
-                            .unwrap()
-                            .parse_number(field_val_i64)
-                            .map_err(|error| ValueParsingError::ParseError {
+                        let date_time = options.parse_number(field_val_i64).map_err(|error| {
+                            ValueParsingError::ParseError {
                                 error,
                                 json: JsonValue::Number(field_val_num),
-                            })?;
+                            }
+                        })?;
                         Ok(Value::DateTime(DateTime::from_utc_with_precision(
                             date_time,
-                            opts.get_precision(),
+                            options.get_precision(),
                         )))
                     } else {
                         Err(ValueParsingError::OverflowError {

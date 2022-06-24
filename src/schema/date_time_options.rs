@@ -165,12 +165,26 @@ impl DateTimeOptions {
 
     /// Returns a handle to the inputs parsers function pointer.
     /// The parsers handle is initialized if not already.
-    pub(crate) fn get_parsers(&self) -> Arc<Mutex<Option<DateTimeParsersHolder>>> {
+    fn get_parsers(&self) -> Arc<Mutex<Option<DateTimeParsersHolder>>> {
         let mut parser_guard = self.parsers.lock().unwrap();
         if parser_guard.is_none() {
             *parser_guard = Some(DateTimeParsersHolder::from(self.clone()));
         }
         self.parsers.clone()
+    }
+
+    /// Parse DateTime from string input using specified input formats.
+    pub fn parse_string(&self, value: String) -> Result<OffsetDateTime, String> {
+        let parsers = self.get_parsers();
+        let mut parsers_guard = parsers.lock().unwrap();
+        parsers_guard.as_mut().unwrap().parse_string(value)
+    }
+
+    /// Parses DateTime from number input using specified input formats
+    pub fn parse_number(&self, value: i64) -> Result<OffsetDateTime, String> {
+        let parsers = self.get_parsers();
+        let mut parsers_guard = parsers.lock().unwrap();
+        parsers_guard.as_mut().unwrap().parse_number(value)
     }
 }
 
@@ -490,7 +504,6 @@ mod tests {
         )
         .unwrap();
 
-        // re-order the input-formats array
         let date_time_options_json = serde_json::to_value(&date_time_options).unwrap();
         assert_eq!(
             date_time_options_json,
