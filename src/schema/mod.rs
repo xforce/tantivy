@@ -130,7 +130,7 @@ mod value;
 
 pub use self::bytes_options::BytesOptions;
 pub use self::date_time::{DateTime, DateTimePrecision};
-pub use self::date_time_options::DateTimeOptions;
+pub use self::date_time_options::{DateTimeFormat, DateTimeOptions};
 pub use self::document::Document;
 pub(crate) use self::facet::FACET_SEP_BYTE;
 pub use self::facet::{Facet, FacetParseError};

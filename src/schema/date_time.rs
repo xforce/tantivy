@@ -4,8 +4,7 @@ use std::{fmt, io};
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use chrono::NaiveDate;
 use common::BinarySerializable;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use super::date_time_options::DateTimeFormat;
 use crate::time::format_description::well_known::{Iso8601, Rfc2822, Rfc3339};
@@ -102,10 +101,20 @@ impl DateTime {
     }
 
     /// Converts to the underlying precise timestamp.
-    /// Seconds, Milliseconds, Microseconds, Nanoseconds.
+    /// TODO: deprecate or remove
     pub const fn into_timestamp(self) -> i64 {
         let Self { timestamp, .. } = self;
         timestamp
+    }
+
+    /// Returns to the underlying timestamp.
+    pub fn get_timestamp(&self) -> i64 {
+        self.timestamp
+    }
+
+    /// Returns the underlying timestamp precision.
+    pub fn get_precision(&self) -> DateTimePrecision {
+        self.precision
     }
 
     /// Convert to UTC `OffsetDateTime`
@@ -157,7 +166,7 @@ impl DateTime {
                     .ok_or_else(|| "Couldn't create NaiveDate from OffsetDateTime".to_string())
                     .map(|datetime| datetime.format(&str_fmt).to_string())
             }
-            DateTimeFormat::UnixTimestamp(_) => Ok(self.timestamp.to_string()),
+            DateTimeFormat::Timestamp(_) => Ok(self.timestamp.to_string()),
         }
     }
 }
@@ -172,7 +181,7 @@ impl fmt::Debug for DateTime {
 }
 
 /// DateTime Precision
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum DateTimePrecision {
     /// Seconds precision
@@ -212,35 +221,6 @@ impl BinarySerializable for DateTimePrecision {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let value_u8 = reader.read_u8()?;
         Self::try_from(value_u8).map_err(|error| io::Error::new(io::ErrorKind::Other, error))
-    }
-}
-
-impl<'de> Deserialize<'de> for DateTimePrecision {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
-        let time_precision: String = Deserialize::deserialize(deserializer)?;
-        match time_precision.as_str() {
-            "secs" => Ok(DateTimePrecision::Seconds),
-            "millis" => Ok(DateTimePrecision::Milliseconds),
-            "micros" => Ok(DateTimePrecision::Microseconds),
-            "nanos" => Ok(DateTimePrecision::Nanoseconds),
-            unknown => Err(D::Error::custom(format!(
-                "Unknown precision value `{}` specified.",
-                unknown
-            ))),
-        }
-    }
-}
-
-impl Serialize for DateTimePrecision {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer {
-        match self {
-            DateTimePrecision::Seconds => serializer.serialize_str("secs"),
-            DateTimePrecision::Milliseconds => serializer.serialize_str("millis"),
-            DateTimePrecision::Microseconds => serializer.serialize_str("micros"),
-            DateTimePrecision::Nanoseconds => serializer.serialize_str("nanos"),
-        }
     }
 }
 
@@ -294,7 +274,7 @@ mod tests {
             "2020-01-02 00:30:00"
         );
         assert_eq!(
-            dt.format(DateTimeFormat::UnixTimestamp(DateTimePrecision::Seconds))
+            dt.format(DateTimeFormat::Timestamp(DateTimePrecision::Seconds))
                 .unwrap(),
             "1577925000"
         );

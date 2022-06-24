@@ -54,7 +54,7 @@ fn main() -> tantivy::Result<()> {
         for (_score, doc_address) in count_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
             assert!(matches!(retrieved_doc.get_first(occurred_at),
-                Some(Value::DateTime(dt)) if dt.precision == DateTimePrecision::Seconds));
+                Some(Value::DateTime(dt)) if dt.get_precision() == DateTimePrecision::Seconds));
             assert_eq!(
                 schema.to_json(&retrieved_doc),
                 r#"{"event_type":["double-click"],"occurred_at":["2022-06-22T13:00:00Z"]}"#

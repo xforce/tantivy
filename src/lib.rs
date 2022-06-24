@@ -135,7 +135,7 @@ pub use time;
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
-pub use crate::schema::{DateTime, DateTimePrecision};
+pub use crate::schema::{DateTime, DateTimeFormat, DateTimeOptions, DateTimePrecision};
 
 /// Tantivy result.
 ///

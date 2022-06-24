@@ -62,7 +62,6 @@ async-trait = "0.1.53"
 derivative = "2.2.0"
 time = { version = "0.3.10", features = ["std", "macros", "serde-well-known"] }
 chrono = "0.4.19"
-chrono-tz = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
