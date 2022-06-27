@@ -129,7 +129,7 @@ mod text_options;
 mod value;
 
 pub use self::bytes_options::BytesOptions;
-pub use self::date_time::{DateTimePrecision, PreciseDateTime};
+pub use self::date_time::{DateTime, DateTimePrecision, PreciseDateTime};
 pub use self::date_time_options::{DateTimeFormat, DateTimeOptions};
 pub use self::document::Document;
 pub(crate) use self::facet::FACET_SEP_BYTE;

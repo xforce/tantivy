@@ -218,7 +218,7 @@ impl FastValue for DateTime {
 impl FastValue for PreciseDateTime {
     fn from_u64(timestamp_u64: u64) -> Self {
         let unix_timestamp = i64::from_u64(timestamp_u64);
-        Self::from_unix_timestamp(unix_timestamp)
+        Self(DateTime::from_unix_timestamp(unix_timestamp))
     }
 
     fn to_u64(&self) -> u64 {
@@ -235,7 +235,7 @@ impl FastValue for PreciseDateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.get_timestamp().as_u64()
+        self.0.get_timestamp().as_u64()
     }
 
     fn to_type() -> Type {
@@ -864,16 +864,16 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!(
-            date_time_field => PreciseDateTime::from_timestamp_with_precision(1i64, DateTimePrecision::Seconds),
-            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(2i64, DateTimePrecision::Seconds),
-            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(3i64, DateTimePrecision::Seconds)
+            date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(1i64, DateTimePrecision::Seconds)),
+            multi_date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(2i64, DateTimePrecision::Seconds)),
+            multi_date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(3i64, DateTimePrecision::Seconds))
         ))?;
         index_writer.add_document(doc!(
-            date_time_field => PreciseDateTime::from_timestamp_with_precision(4i64, DateTimePrecision::Seconds)
+            date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(4i64, DateTimePrecision::Seconds))
         ))?;
         index_writer.add_document(doc!(
-            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(5i64, DateTimePrecision::Seconds),
-            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(6i64, DateTimePrecision::Seconds)
+            multi_date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(5i64, DateTimePrecision::Seconds)),
+            multi_date_time_field => PreciseDateTime(DateTime::from_timestamp_with_precision(6i64, DateTimePrecision::Seconds))
         ))?;
         index_writer.commit()?;
         let reader = index.reader()?;

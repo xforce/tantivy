@@ -377,7 +377,10 @@ impl QueryParser {
                     })?;
                 Ok(Term::from_field_precise_date_time(
                     field,
-                    PreciseDateTime::from_utc_with_precision(dt, options.get_precision()),
+                    PreciseDateTime(DateTime::from_utc_with_precision(
+                        dt,
+                        options.get_precision(),
+                    )),
                 ))
             }
             FieldType::Str(ref str_options) => {
@@ -475,7 +478,10 @@ impl QueryParser {
                 .map_err(QueryParserError::DateTimeFormatError)?;
                 let dt_term = Term::from_field_precise_date_time(
                     field,
-                    PreciseDateTime::from_utc_with_precision(utc_datetime, options.get_precision()),
+                    PreciseDateTime(DateTime::from_utc_with_precision(
+                        utc_datetime,
+                        options.get_precision(),
+                    )),
                 );
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
@@ -1099,7 +1105,7 @@ mod test {
         // Subseconds are discarded
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            r#"(Term(type=Json, field=14, path=date, vtype=Date, DateTime { timestamp: 1570864850, precision: Seconds }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
             true,
         );
     }

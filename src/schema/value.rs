@@ -371,14 +371,14 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    let DateTime { unix_timestamp, .. } = val;
-                    unix_timestamp.serialize(writer)
+                    let DateTime { timestamp, .. } = val;
+                    timestamp.serialize(writer)
                 }
                 Value::DateTime(ref val) => {
-                    let PreciseDateTime {
+                    let PreciseDateTime(DateTime {
                         timestamp,
                         precision,
-                    } = val;
+                    }) = val;
                     DATE_TIME_CODE.serialize(writer)?;
                     timestamp.serialize(writer)?;
                     precision.serialize(writer)
@@ -429,9 +429,9 @@ mod binary_serialize {
                 DATE_TIME_CODE => {
                     let unix_timestamp = i64::deserialize(reader)?;
                     let precision = DateTimePrecision::deserialize(reader)?;
-                    Ok(Value::DateTime(
-                        PreciseDateTime::from_timestamp_with_precision(unix_timestamp, precision),
-                    ))
+                    Ok(Value::DateTime(PreciseDateTime(
+                        DateTime::from_timestamp_with_precision(unix_timestamp, precision),
+                    )))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),

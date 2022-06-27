@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
@@ -22,7 +22,7 @@ use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PreciseDateTime {
+pub struct DateTime {
     /// The timestamp component.
     pub(crate) timestamp: i64,
     /// The precision component to denote if the timestamp
@@ -30,9 +30,7 @@ pub struct PreciseDateTime {
     pub(crate) precision: DateTimePrecision,
 }
 
-
-
-impl PreciseDateTime {
+impl DateTime {
     /// Create new instance from UNIX timestamp.
     pub const fn from_unix_timestamp(unix_timestamp: i64) -> Self {
         Self {
@@ -165,9 +163,9 @@ impl PreciseDateTime {
     }
 }
 
-impl fmt::Debug for PreciseDateTime {
+impl fmt::Debug for DateTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PreciseDateTime")
+        f.debug_struct("DateTime")
             .field("timestamp", &self.timestamp)
             .field("precision", &self.precision)
             .finish()
@@ -238,6 +236,38 @@ fn precise_timestamp_to_datetime(
     .map_err(|error| error.to_string())
 }
 
+/// A wrapper around DateTime to denote it has custom precision.
+// It only exists to provide support the underlying fast
+// field value for both `[Value::Date]` and `[Value::DateTime]` variants.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PreciseDateTime(
+    /// The inner DateTime
+    pub DateTime,
+);
+
+impl Deref for PreciseDateTime {
+    type Target = DateTime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PreciseDateTime {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl fmt::Debug for PreciseDateTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DateTime")
+            .field("timestamp", &self.0.timestamp)
+            .field("precision", &self.0.precision)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,9 +275,9 @@ mod tests {
 
     #[test]
     fn test_format_date_time() {
-        let dt = PreciseDateTime::from_utc(
+        let dt = PreciseDateTime(DateTime::from_utc(
             OffsetDateTime::parse("2020-01-02T03:00:00+02:30", &Iso8601::DEFAULT).unwrap(),
-        );
+        ));
 
         assert_eq!(
             dt.format(DateTimeFormat::ISO8601).unwrap(),
