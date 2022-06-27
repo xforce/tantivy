@@ -99,6 +99,13 @@ impl DateTime {
         }
     }
 
+    /// Converts to the underlying timestamp.
+    /// TODO: kept for backward compatibility, should we remove it?
+    pub const fn into_timestamp(self) -> i64 {
+        let Self { timestamp, .. } = self;
+        timestamp
+    }
+
     /// Returns the underlying timestamp.
     pub fn get_timestamp(&self) -> i64 {
         self.timestamp
