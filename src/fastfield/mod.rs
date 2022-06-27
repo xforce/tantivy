@@ -31,7 +31,7 @@ pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
-use crate::{DateTime, DateTimePrecision, DocId};
+use crate::{DateTime, DocId, PreciseDateTime};
 
 mod alive_bitset;
 mod bytes;
@@ -52,20 +52,13 @@ pub trait MultiValueLength {
     fn get_total_len(&self) -> u64;
 }
 
-/// Trait for types that are allowed for fast fields: (u64, i64 and f64).
+/// Trait for types that are allowed for fast fields:
+/// (u64, i64 and f64, bool, DateTime).
 pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
     /// Converts a value from u64
     ///
     /// Internally all fast field values are encoded as u64.
     fn from_u64(val: u64) -> Self;
-
-    /// Converts a value from u64 with precision.
-    /// The default impl just uses a second precision
-    ///
-    /// Internally all fast field values are encoded as u64.
-    fn from_u64_with_precision(val: u64, _: DateTimePrecision) -> Self {
-        Self::from_u64(val)
-    }
 
     /// Converts a value to u64.
     ///
@@ -202,11 +195,6 @@ impl FastValue for DateTime {
         Self::from_unix_timestamp(unix_timestamp)
     }
 
-    fn from_u64_with_precision(timestamp_u64: u64, precision: DateTimePrecision) -> Self {
-        let unix_timestamp = i64::from_u64(timestamp_u64);
-        Self::from_timestamp_with_precision(unix_timestamp, precision)
-    }
-
     fn to_u64(&self) -> u64 {
         self.into_unix_timestamp().to_u64()
     }
@@ -227,13 +215,42 @@ impl FastValue for DateTime {
     }
 }
 
+impl FastValue for PreciseDateTime {
+    fn from_u64(timestamp_u64: u64) -> Self {
+        let unix_timestamp = i64::from_u64(timestamp_u64);
+        Self::from_unix_timestamp(unix_timestamp)
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.get_timestamp().to_u64()
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::DateTime(ref date_time_options) => {
+                date_time_options.get_fastfield_cardinality()
+            }
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        self.get_timestamp().as_u64()
+    }
+
+    fn to_type() -> Type {
+        Type::DateTime
+    }
+}
+
 fn value_to_u64(value: &Value) -> u64 {
     match value {
         Value::U64(val) => val.to_u64(),
         Value::I64(val) => val.to_u64(),
         Value::F64(val) => val.to_u64(),
         Value::Bool(val) => val.to_u64(),
-        Value::Date(val) | Value::DateTime(val) => val.to_u64(),
+        Value::Date(val) => val.to_u64(),
+        Value::DateTime(val) => val.to_u64(),
         _ => panic!(
             "Expected a u64/i64/f64/bool/date/datetime field, got {:?} ",
             value
@@ -279,7 +296,7 @@ mod tests {
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{Document, Field, NumericOptions, Schema, FAST, STRING, TEXT};
     use crate::time::OffsetDateTime;
-    use crate::{Index, SegmentId, SegmentReader};
+    use crate::{DateTimeOptions, DateTimePrecision, Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -811,6 +828,61 @@ mod tests {
         let fast_fields = segment_reader.fast_fields();
         let date_fast_field = fast_fields.date(date_field).unwrap();
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
+        let mut dates = vec![];
+        {
+            assert_eq!(date_fast_field.get(0u32).into_unix_timestamp(), 1i64);
+            dates_fast_field.get_vals(0u32, &mut dates);
+            assert_eq!(dates.len(), 2);
+            assert_eq!(dates[0].into_unix_timestamp(), 2i64);
+            assert_eq!(dates[1].into_unix_timestamp(), 3i64);
+        }
+        {
+            assert_eq!(date_fast_field.get(1u32).into_unix_timestamp(), 4i64);
+            dates_fast_field.get_vals(1u32, &mut dates);
+            assert!(dates.is_empty());
+        }
+        {
+            assert_eq!(date_fast_field.get(2u32).into_unix_timestamp(), 0i64);
+            dates_fast_field.get_vals(2u32, &mut dates);
+            assert_eq!(dates.len(), 2);
+            assert_eq!(dates[0].into_unix_timestamp(), 5i64);
+            assert_eq!(dates[1].into_unix_timestamp(), 6i64);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_date_time_fast_field() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_time_field = schema_builder.add_datetime_field("datetime", FAST);
+        let multi_date_time_field = schema_builder.add_datetime_field(
+            "multi_datetime",
+            DateTimeOptions::default().set_fast(Cardinality::MultiValues),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!(
+            date_time_field => PreciseDateTime::from_timestamp_with_precision(1i64, DateTimePrecision::Seconds),
+            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(2i64, DateTimePrecision::Seconds),
+            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(3i64, DateTimePrecision::Seconds)
+        ))?;
+        index_writer.add_document(doc!(
+            date_time_field => PreciseDateTime::from_timestamp_with_precision(4i64, DateTimePrecision::Seconds)
+        ))?;
+        index_writer.add_document(doc!(
+            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(5i64, DateTimePrecision::Seconds),
+            multi_date_time_field => PreciseDateTime::from_timestamp_with_precision(6i64, DateTimePrecision::Seconds)
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+        let date_fast_field = fast_fields.datetime(date_time_field).unwrap();
+        let dates_fast_field = fast_fields.datetimes(multi_date_time_field).unwrap();
         let mut dates = vec![];
         {
             assert_eq!(date_fast_field.get(0u32).into_unix_timestamp(), 1i64);

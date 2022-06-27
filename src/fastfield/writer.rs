@@ -24,7 +24,7 @@ pub struct FastFieldsWriter {
 
 fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
     match *field_entry.field_type() {
-        FieldType::I64(_) | FieldType::Date(_) => common::i64_to_u64(0i64),
+        FieldType::I64(_) | FieldType::Date(_) | FieldType::DateTime(_) => common::i64_to_u64(0i64),
         FieldType::F64(_) => common::f64_to_u64(0.0f64),
         _ => 0u64,
     }

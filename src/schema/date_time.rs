@@ -1,4 +1,5 @@
 use std::io::{Read, Write};
+use std::ops::Deref;
 use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
@@ -10,7 +11,7 @@ use super::date_time_options::DateTimeFormat;
 use crate::time::format_description::well_known::{Iso8601, Rfc2822, Rfc3339};
 use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
-/// A date/time value.
+/// A date/time value with custom precision.
 ///
 /// This DateTime does not carry any timezone information
 /// and stores all value in UTC time.
@@ -21,7 +22,7 @@ use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DateTime {
+pub struct PreciseDateTime {
     /// The timestamp component.
     pub(crate) timestamp: i64,
     /// The precision component to denote if the timestamp
@@ -29,7 +30,9 @@ pub struct DateTime {
     pub(crate) precision: DateTimePrecision,
 }
 
-impl DateTime {
+
+
+impl PreciseDateTime {
     /// Create new instance from UNIX timestamp.
     pub const fn from_unix_timestamp(unix_timestamp: i64) -> Self {
         Self {
@@ -80,8 +83,6 @@ impl DateTime {
     /// Create new from `PrimitiveDateTime`
     ///
     /// Implicitly assumes that the given date/time is in UTC!
-    /// Otherwise the original value must only be reobtained with
-    /// [`Self::into_primitive()`].
     pub const fn from_primitive(dt: PrimitiveDateTime) -> Self {
         Self::from_utc(dt.assume_utc())
     }
@@ -100,19 +101,12 @@ impl DateTime {
         }
     }
 
-    /// Converts to the underlying precise timestamp.
-    /// TODO: deprecate or remove
-    pub const fn into_timestamp(self) -> i64 {
-        let Self { timestamp, .. } = self;
-        timestamp
-    }
-
-    /// Returns to the underlying timestamp.
+    /// Returns the underlying timestamp.
     pub fn get_timestamp(&self) -> i64 {
         self.timestamp
     }
 
-    /// Returns the underlying timestamp precision.
+    /// Returns the underlying precision.
     pub fn get_precision(&self) -> DateTimePrecision {
         self.precision
     }
@@ -171,9 +165,9 @@ impl DateTime {
     }
 }
 
-impl fmt::Debug for DateTime {
+impl fmt::Debug for PreciseDateTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DateTime")
+        f.debug_struct("PreciseDateTime")
             .field("timestamp", &self.timestamp)
             .field("precision", &self.precision)
             .finish()
@@ -251,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_format_date_time() {
-        let dt = DateTime::from_utc(
+        let dt = PreciseDateTime::from_utc(
             OffsetDateTime::parse("2020-01-02T03:00:00+02:30", &Iso8601::DEFAULT).unwrap(),
         );
 

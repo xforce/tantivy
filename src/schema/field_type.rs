@@ -11,7 +11,7 @@ use crate::schema::{
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
-use crate::DateTime;
+use crate::{DateTime, PreciseDateTime};
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -313,7 +313,7 @@ impl FieldType {
                             json: JsonValue::String(field_text),
                         }
                     })?;
-                    Ok(Value::DateTime(DateTime::from_utc_with_precision(
+                    Ok(Value::DateTime(PreciseDateTime::from_utc_with_precision(
                         date_time,
                         options.get_precision(),
                     )))
@@ -357,7 +357,7 @@ impl FieldType {
                                 json: JsonValue::Number(field_val_num),
                             }
                         })?;
-                        Ok(Value::DateTime(DateTime::from_utc_with_precision(
+                        Ok(Value::DateTime(PreciseDateTime::from_utc_with_precision(
                             date_time,
                             options.get_precision(),
                         )))
@@ -457,10 +457,7 @@ mod tests {
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
         // Time zone is converted to UTC and subseconds are discarded
-        assert_eq!(
-            "Date(DateTime { timestamp: 1570857650, precision: Seconds })",
-            format!("{:?}", date)
-        );
+        assert_eq!("Date(2019-10-12T05:20:50Z)", format!("{:?}", date));
     }
 
     #[test]
@@ -484,19 +481,19 @@ mod tests {
         let doc = schema.parse_document(doc_json).unwrap();
         let date_time = doc.get_first(dt_millis).unwrap();
         assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650520, precision: Milliseconds })",
+            "DateTime(PreciseDateTime { timestamp: 1570857650520, precision: Milliseconds })",
             format!("{:?}", date_time)
         );
 
         let date_time = doc.get_first(dt_secs).unwrap();
         assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650, precision: Seconds })",
+            "DateTime(PreciseDateTime { timestamp: 1570857650, precision: Seconds })",
             format!("{:?}", date_time)
         );
 
         let date_time = doc.get_first(dt_nanos).unwrap();
         assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650520000000, precision: Nanoseconds })",
+            "DateTime(PreciseDateTime { timestamp: 1570857650520000000, precision: Nanoseconds })",
             format!("{:?}", date_time)
         );
     }

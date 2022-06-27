@@ -5,7 +5,7 @@ use std::{fmt, str};
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
-use crate::DateTime;
+use crate::{DateTime, PreciseDateTime};
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
@@ -76,6 +76,11 @@ impl Term {
 
     /// Builds a term given a field, and a DateTime value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
+        Term::from_fast_value(field, &val)
+    }
+
+    /// Builds a term given a field, and a PreciseDateTime value
+    pub fn from_field_precise_date_time(field: Field, val: PreciseDateTime) -> Term {
         Term::from_fast_value(field, &val)
     }
 

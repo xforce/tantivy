@@ -20,7 +20,7 @@ use crate::schema::{
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{DateTime, Score};
+use crate::{DateTime, PreciseDateTime, Score};
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -361,10 +361,24 @@ impl QueryParser {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
                 Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
             }
-            FieldType::DateTime(_) => {
-                // TODO-EVAN
-                let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
+            FieldType::DateTime(ref options) => {
+                let dt = options
+                    .parse_string(phrase.to_string())
+                    .or_else(|_| {
+                        i64::from_str(phrase)
+                            .map_err(|error| error.to_string())
+                            .and_then(|value| options.parse_number(value))
+                    })
+                    .map_err(|_| {
+                        QueryParserError::DateTimeFormatError(format!(
+                            "Could not parse `{}` into a valide datetime",
+                            phrase
+                        ))
+                    })?;
+                Ok(Term::from_field_precise_date_time(
+                    field,
+                    PreciseDateTime::from_utc_with_precision(dt, options.get_precision()),
+                ))
             }
             FieldType::Str(ref str_options) => {
                 let option = str_options.get_indexing_options().ok_or_else(|| {
@@ -459,9 +473,9 @@ impl QueryParser {
                     options.parse_string(phrase.to_string())
                 }
                 .map_err(QueryParserError::DateTimeFormatError)?;
-                let dt_term = Term::from_field_date(
+                let dt_term = Term::from_field_precise_date_time(
                     field,
-                    DateTime::from_utc_with_precision(utc_datetime, options.get_precision()),
+                    PreciseDateTime::from_utc_with_precision(utc_datetime, options.get_precision()),
                 );
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
@@ -1085,7 +1099,7 @@ mod test {
         // Subseconds are discarded
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(type=Json, field=14, path=date, vtype=Date, DateTime { timestamp: 1570864850, precision: Seconds }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
             true,
         );
     }

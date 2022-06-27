@@ -146,7 +146,7 @@ impl SchemaBuilder {
 
     /// Adds a new DateTime field.
     /// Returns the associated field handle
-    /// Internally, Tantivy simply stores dates as i64 UTC timestamps,
+    /// Internally, Tantivy simply stores DateTime as i64 UTC timestamps,
     /// with (seconds, milliseconds, microseconds, nanoseconds) precision,
     /// while the user supplies DateTime values in supported format for convenience.
     ///

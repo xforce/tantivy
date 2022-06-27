@@ -6,7 +6,7 @@ use serde_json::Map;
 
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
-use crate::DateTime;
+use crate::{DateTime, PreciseDateTime};
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -27,7 +27,7 @@ pub enum Value {
     /// Date/time with second precision
     Date(DateTime),
     /// DateTime with timestamp precision
-    DateTime(DateTime),
+    DateTime(PreciseDateTime),
     /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -188,7 +188,7 @@ impl Value {
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
-    pub fn as_datetime(&self) -> Option<DateTime> {
+    pub fn as_datetime(&self) -> Option<PreciseDateTime> {
         if let Value::DateTime(date) = self {
             Some(*date)
         } else {
@@ -255,6 +255,12 @@ impl From<DateTime> for Value {
     }
 }
 
+impl From<PreciseDateTime> for Value {
+    fn from(pdt: PreciseDateTime) -> Value {
+        Value::DateTime(pdt)
+    }
+}
+
 impl<'a> From<&'a str> for Value {
     fn from(s: &'a str) -> Value {
         Value::Str(s.to_string())
@@ -310,7 +316,7 @@ mod binary_serialize {
     use super::Value;
     use crate::schema::Facet;
     use crate::tokenizer::PreTokenizedString;
-    use crate::{DateTime, DateTimePrecision};
+    use crate::{DateTime, DateTimePrecision, PreciseDateTime};
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
@@ -365,11 +371,11 @@ mod binary_serialize {
                 }
                 Value::Date(ref val) => {
                     DATE_CODE.serialize(writer)?;
-                    let DateTime { timestamp, .. } = val;
-                    timestamp.serialize(writer)
+                    let DateTime { unix_timestamp, .. } = val;
+                    unix_timestamp.serialize(writer)
                 }
                 Value::DateTime(ref val) => {
-                    let DateTime {
+                    let PreciseDateTime {
                         timestamp,
                         precision,
                     } = val;
@@ -423,10 +429,9 @@ mod binary_serialize {
                 DATE_TIME_CODE => {
                     let unix_timestamp = i64::deserialize(reader)?;
                     let precision = DateTimePrecision::deserialize(reader)?;
-                    Ok(Value::DateTime(DateTime::from_timestamp_with_precision(
-                        unix_timestamp,
-                        precision,
-                    )))
+                    Ok(Value::DateTime(
+                        PreciseDateTime::from_timestamp_with_precision(unix_timestamp, precision),
+                    ))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),

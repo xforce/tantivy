@@ -33,6 +33,12 @@ pub struct DateTimeOptions {
 
     // Holds a handle to the inputs parsers function pointer.
     // This is lazy loaded and sorted based on most recently successful parser.
+    //
+    // We hold it in a mutex as we need interior mutability to keep efficiently
+    // try the parsers. right now we put the last successful parser in front of a queue
+    // so we can try it first when parsing next document. We could also sort based
+    // on most successful parser function.
+    // However, given the need for mutex in this hot path, we could avoid this dance?
     #[serde(skip)]
     #[derivative(Debug = "ignore")]
     #[derivative(PartialEq = "ignore")]
@@ -240,7 +246,8 @@ impl<T: Into<DateTimeOptions>> BitOr<T> for DateTimeOptions {
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
             fast: self.fast.or(other.fast),
-            ..Default::default() // TODO-evan: discuss or?
+            // TODO: Is the default ok for the other field?
+            ..Default::default()
         }
     }
 }
@@ -284,7 +291,6 @@ impl DateTimeParsersHolder {
         for (index, parser) in self.string_parsers.iter().enumerate() {
             if let Ok(date_time) = parser(&value) {
                 // Move successful parser in front of queue.
-                // TODO-evan: test this for runtime borrow rules
                 self.string_parsers.swap(0, index);
                 return Ok(date_time);
             }
