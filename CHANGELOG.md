@@ -1,3 +1,7 @@
+Tantivy 0.19
+================================
+- Remove Searcher pool and make `Searcher` cloneable.
+
 Tantivy 0.18
 ================================
 - For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
