@@ -117,9 +117,6 @@ extern crate thiserror;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-#[macro_use]
-extern crate derivative;
-
 #[cfg(feature = "mmap")]
 #[cfg(test)]
 mod functional_test;
@@ -132,6 +129,124 @@ mod future_result;
 ///
 /// Tantivy uses [`time`](https://crates.io/crates/time) for dates.
 pub use time;
+
+use crate::time::format_description::well_known::Rfc3339;
+use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+
+/// A date/time value with microsecond precision.
+///
+/// This timestamp does not carry any explicit time zone information.
+/// Users are responsible for applying the provided conversion
+/// functions consistently. Internally the time zone is assumed
+/// to be UTC, which is also used implicitly for JSON serialization.
+///
+/// All constructors and conversions are provided as explicit
+/// functions and not by implementing any `From`/`Into` traits
+/// to prevent unintended usage.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DateTime {
+    // timestamp in microseconds
+    pub(crate) timestamp_micros: i64,
+}
+
+impl DateTime {
+    /// Create new from UNIX timestamp in seconds
+    pub const fn from_timestamp_secs(seconds: i64) -> Self {
+        Self {
+            timestamp_micros: seconds * 1_000_000,
+        }
+    }
+
+    /// Create new from UNIX timestamp in milliseconds
+    pub const fn from_timestamp_millis(milliseconds: i64) -> Self {
+        Self {
+            timestamp_micros: milliseconds * 1_000,
+        }
+    }
+
+    /// Create new from UNIX timestamp in microseconds.
+    pub const fn from_timestamp_micros(microseconds: i64) -> Self {
+        Self {
+            timestamp_micros: microseconds,
+        }
+    }
+
+    /// Create new from UNIX timestamp in nanoseconds.
+    pub const fn from_timestamp_nanos(nanoseconds: i128) -> Self {
+        Self {
+            timestamp_micros: (nanoseconds as i64 / 1_000),
+        }
+    }
+
+    /// Create new from `OffsetDateTime`
+    ///
+    /// The given date/time is converted to UTC and the actual
+    /// time zone is discarded.
+    pub const fn from_utc(dt: OffsetDateTime) -> Self {
+        Self::from_timestamp_nanos(dt.unix_timestamp_nanos())
+    }
+
+    /// Create new from `PrimitiveDateTime`
+    ///
+    /// Implicitly assumes that the given date/time is in UTC!
+    /// Otherwise the original value must only be reobtained with
+    /// [`Self::into_primitive()`].
+    pub const fn from_primitive(dt: PrimitiveDateTime) -> Self {
+        Self::from_utc(dt.assume_utc())
+    }
+
+    /// Convert to UNIX timestamp in seconds.
+    pub const fn into_timestamp_secs(self) -> i64 {
+        self.timestamp_micros / 1_000_000
+    }
+
+    /// Convert to UNIX timestamp in milliseconds.
+    pub const fn into_timestamp_millis(self) -> i64 {
+        self.timestamp_micros / 1_000
+    }
+
+    /// Convert to UNIX timestamp in microseconds.
+    pub const fn into_timestamp_micros(self) -> i64 {
+        self.timestamp_micros
+    }
+
+    /// Convert to UNIX timestamp in microseconds.
+    pub const fn into_timestamp_nanos(self) -> i64 {
+        self.timestamp_micros * 1_000
+    }
+
+    /// Convert to UTC `OffsetDateTime`
+    pub fn into_utc(self) -> OffsetDateTime {
+        let timestamp_nanos = (self.timestamp_micros * 1000) as i128;
+        let utc_datetime = OffsetDateTime::from_unix_timestamp_nanos(timestamp_nanos)
+            .expect("valid UNIX timestamp");
+        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
+        utc_datetime
+    }
+
+    /// Convert to `OffsetDateTime` with the given time zone
+    pub fn into_offset(self, offset: UtcOffset) -> OffsetDateTime {
+        self.into_utc().to_offset(offset)
+    }
+
+    /// Convert to `PrimitiveDateTime` without any time zone
+    ///
+    /// The value should have been constructed with [`Self::from_primitive()`].
+    /// Otherwise the time zone is implicitly assumed to be UTC.
+    pub fn into_primitive(self) -> PrimitiveDateTime {
+        let utc_datetime = self.into_utc();
+        // Discard the UTC time zone offset
+        debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
+        PrimitiveDateTime::new(utc_datetime.date(), utc_datetime.time())
+    }
+}
+
+impl fmt::Debug for DateTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let utc_rfc3339 = self.into_utc().format(&Rfc3339).map_err(|_| fmt::Error)?;
+        f.write_str(&utc_rfc3339)
+    }
+}
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
@@ -192,9 +307,7 @@ pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
-pub use crate::schema::{
-    DateTime, DateTimeFormat, DateTimeOptions, DateTimePrecision, Document, PreciseDateTime, Term,
-};
+pub use crate::schema::{DateOptions, DatePrecision, Document, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 4;
@@ -310,6 +423,7 @@ pub mod tests {
     use rand::distributions::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    use time::OffsetDateTime;
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
@@ -318,7 +432,7 @@ pub mod tests {
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::*;
-    use crate::{DocAddress, Index, Postings, ReloadPolicy};
+    use crate::{DateTime, DocAddress, Index, Postings, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -1026,5 +1140,26 @@ pub mod tests {
         writer.merge(&segment_ids).wait()?;
         assert!(index.validate_checksum()?.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn test_datetime() {
+        let now = OffsetDateTime::now_utc();
+
+        let dt = DateTime::from_utc(now).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+        // We don't store nanosecond level precision.
+        assert_ne!(dt.to_hms_nano(), now.to_hms_nano());
+
+        let dt = DateTime::from_timestamp_secs(now.unix_timestamp()).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms(), now.to_hms());
+        // Constructed from a second precision.
+        assert_ne!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt = DateTime::from_timestamp_nanos(now.unix_timestamp_nanos()).into_utc();
+        assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
+        assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
     }
 }

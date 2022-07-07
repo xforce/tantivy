@@ -298,8 +298,7 @@ impl IndexMerger {
                 FieldType::U64(ref options)
                 | FieldType::I64(ref options)
                 | FieldType::F64(ref options)
-                | FieldType::Bool(ref options)
-                | FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
+                | FieldType::Bool(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
                         self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
@@ -308,7 +307,7 @@ impl IndexMerger {
                     }
                     None => {}
                 },
-                FieldType::DateTime(ref options) => match options.get_fastfield_cardinality() {
+                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
                         self.write_single_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
@@ -317,7 +316,6 @@ impl IndexMerger {
                     }
                     None => {}
                 },
-
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;

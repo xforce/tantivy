@@ -49,7 +49,6 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
         | FieldType::F64(_)
         | FieldType::Bool(_)
         | FieldType::Date(_)
-        | FieldType::DateTime(_)
         | FieldType::Bytes(_)
         | FieldType::Facet(_) => Box::new(SpecializedPostingsWriter::<NothingRecorder>::default()),
         FieldType::JsonObject(ref json_object_options) => {

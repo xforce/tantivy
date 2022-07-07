@@ -327,7 +327,7 @@ impl<'a> JsonTermWriter<'a> {
         self.close_path_and_set_type(T::to_type());
         self.term_buffer
             .as_mut()
-            .extend_from_slice(val.to_u64().to_be_bytes().as_slice());
+            .extend_from_slice(val.to_u64(None).to_be_bytes().as_slice());
     }
 
     #[cfg(test)]

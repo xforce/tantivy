@@ -24,7 +24,7 @@ pub struct FastFieldsWriter {
 
 fn fast_field_default_value(field_entry: &FieldEntry) -> u64 {
     match *field_entry.field_type() {
-        FieldType::I64(_) | FieldType::Date(_) | FieldType::DateTime(_) => common::i64_to_u64(0i64),
+        FieldType::I64(_) | FieldType::Date(_) => common::i64_to_u64(0i64),
         FieldType::F64(_) => common::f64_to_u64(0.0f64),
         _ => 0u64,
     }
@@ -39,49 +39,63 @@ impl FastFieldsWriter {
         let mut bytes_value_writers = Vec::new();
 
         for (field, field_entry) in schema.fields() {
-            match field_entry.field_type() {
+            let field_type = field_entry.field_type();
+            match field_type {
                 FieldType::I64(ref int_options)
                 | FieldType::U64(ref int_options)
                 | FieldType::F64(ref int_options)
-                | FieldType::Bool(ref int_options)
-                | FieldType::Date(ref int_options) => {
+                | FieldType::Bool(ref int_options) => {
                     match int_options.get_fastfield_cardinality() {
                         Some(Cardinality::SingleValue) => {
-                            let mut fast_field_writer = IntFastFieldWriter::new(field);
+                            let mut fast_field_writer =
+                                IntFastFieldWriter::new(field, field_type.clone());
                             let default_value = fast_field_default_value(field_entry);
                             fast_field_writer.set_val_if_missing(default_value);
                             single_value_writers.push(fast_field_writer);
                         }
                         Some(Cardinality::MultiValues) => {
-                            let fast_field_writer =
-                                MultiValuedFastFieldWriter::new(field, FastFieldType::Numeric);
+                            let fast_field_writer = MultiValuedFastFieldWriter::new(
+                                field,
+                                FastFieldType::Numeric,
+                                field_type.clone(),
+                            );
                             multi_values_writers.push(fast_field_writer);
                         }
                         None => {}
                     }
                 }
-                FieldType::DateTime(ref options) => match options.get_fastfield_cardinality() {
+                FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
-                        let mut fast_field_writer = IntFastFieldWriter::new(field);
+                        let mut fast_field_writer =
+                            IntFastFieldWriter::new(field, field_type.clone());
                         let default_value = fast_field_default_value(field_entry);
                         fast_field_writer.set_val_if_missing(default_value);
                         single_value_writers.push(fast_field_writer);
                     }
                     Some(Cardinality::MultiValues) => {
-                        let fast_field_writer =
-                            MultiValuedFastFieldWriter::new(field, FastFieldType::Numeric);
+                        let fast_field_writer = MultiValuedFastFieldWriter::new(
+                            field,
+                            FastFieldType::Numeric,
+                            field_type.clone(),
+                        );
                         multi_values_writers.push(fast_field_writer);
                     }
                     None => {}
                 },
                 FieldType::Facet(_) => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::Facet);
+                    let fast_field_writer = MultiValuedFastFieldWriter::new(
+                        field,
+                        FastFieldType::Facet,
+                        field_type.clone(),
+                    );
                     term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Str(_) if field_entry.is_fast() => {
-                    let fast_field_writer =
-                        MultiValuedFastFieldWriter::new(field, FastFieldType::String);
+                    let fast_field_writer = MultiValuedFastFieldWriter::new(
+                        field,
+                        FastFieldType::String,
+                        field_type.clone(),
+                    );
                     term_id_writers.push(fast_field_writer);
                 }
                 FieldType::Bytes(bytes_option) => {
@@ -244,6 +258,7 @@ impl FastFieldsWriter {
 /// using `common::i64_to_u64` and `common::f64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
+    field_type: FieldType,
     vals: BlockedBitpacker,
     val_count: usize,
     val_if_missing: u64,
@@ -253,9 +268,10 @@ pub struct IntFastFieldWriter {
 
 impl IntFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
-    pub fn new(field: Field) -> IntFastFieldWriter {
+    pub fn new(field: Field, field_type: FieldType) -> IntFastFieldWriter {
         IntFastFieldWriter {
             field,
+            field_type,
             vals: BlockedBitpacker::new(),
             val_count: 0,
             val_if_missing: 0u64,
@@ -319,7 +335,7 @@ impl IntFastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         match doc.get_first(self.field) {
             Some(v) => {
-                self.add_val(super::value_to_u64(v));
+                self.add_val(super::value_to_u64(v, &self.field_type));
             }
             None => {
                 self.add_val(self.val_if_missing);

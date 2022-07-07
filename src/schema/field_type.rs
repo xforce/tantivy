@@ -5,13 +5,13 @@ use thiserror::Error;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::{
-    DateTimeOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions,
-    TextFieldIndexing, TextOptions, Value,
+    DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, TextFieldIndexing,
+    TextOptions, Value,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
-use crate::{DateTime, PreciseDateTime};
+use crate::DateTime;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -55,8 +55,6 @@ pub enum Type {
     Bool = b'o',
     /// `date(i64) timestamp`
     Date = b'd',
-    /// `datetime(i64) timestamp`
-    DateTime = b't',
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
     Facet = b'h',
     /// `Vec<u8>`
@@ -65,14 +63,13 @@ pub enum Type {
     Json = b'j',
 }
 
-const ALL_TYPES: [Type; 10] = [
+const ALL_TYPES: [Type; 9] = [
     Type::Str,
     Type::U64,
     Type::I64,
     Type::F64,
     Type::Bool,
     Type::Date,
-    Type::DateTime,
     Type::Facet,
     Type::Bytes,
     Type::Json,
@@ -99,7 +96,6 @@ impl Type {
             Type::F64 => "F64",
             Type::Bool => "Bool",
             Type::Date => "Date",
-            Type::DateTime => "DateTime",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
             Type::Json => "Json",
@@ -116,7 +112,6 @@ impl Type {
             b'f' => Some(Type::F64),
             b'o' => Some(Type::Bool),
             b'd' => Some(Type::Date),
-            b't' => Some(Type::DateTime),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
@@ -143,9 +138,7 @@ pub enum FieldType {
     /// Bool field type configuration
     Bool(NumericOptions),
     /// Signed 64-bits Date 64 field type configuration,
-    Date(NumericOptions),
-    /// Signed 64-bits DateTime type configuration.
-    DateTime(DateTimeOptions),
+    Date(DateOptions),
     /// Hierachical Facet
     Facet(FacetOptions),
     /// Bytes (one per document)
@@ -164,7 +157,6 @@ impl FieldType {
             FieldType::F64(_) => Type::F64,
             FieldType::Bool(_) => Type::Bool,
             FieldType::Date(_) => Type::Date,
-            FieldType::DateTime(_) => Type::DateTime,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
@@ -180,7 +172,6 @@ impl FieldType {
             | FieldType::F64(ref int_options)
             | FieldType::Bool(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::DateTime(ref date_time_options) => date_time_options.is_indexed(),
             FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
@@ -216,9 +207,8 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options)
             | FieldType::Bool(ref int_options) => int_options.is_fast(),
-            FieldType::DateTime(ref date_time_options) => date_time_options.is_fast(),
+            FieldType::Date(ref date_options) => date_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(_) => false,
         }
@@ -234,9 +224,8 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options)
             | FieldType::Bool(ref int_options) => int_options.fieldnorms(),
-            FieldType::DateTime(ref date_time_options) => date_time_options.fieldnorms(),
+            FieldType::Date(ref date_options) => date_options.fieldnorms(),
             FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
@@ -259,7 +248,6 @@ impl FieldType {
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options)
             | FieldType::Bool(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
@@ -267,8 +255,8 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::DateTime(ref date_time_options) => {
-                if date_time_options.is_indexed() {
+            FieldType::Date(ref date_options) => {
+                if date_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
@@ -295,70 +283,41 @@ impl FieldType {
     /// target field is a `Str`, this method will return an Error.
     pub fn value_from_json(&self, json: JsonValue) -> Result<Value, ValueParsingError> {
         match json {
-            JsonValue::String(field_text) => match self {
-                FieldType::Date(_) => {
-                    let dt_with_fixed_tz =
-                        OffsetDateTime::parse(&field_text, &Rfc3339).map_err(|_err| {
-                            ValueParsingError::TypeError {
+            JsonValue::String(field_text) => {
+                match self {
+                    FieldType::Date(_) => {
+                        let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
+                            .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
                                 json: JsonValue::String(field_text),
-                            }
-                        })?;
-                    Ok(DateTime::from_utc(dt_with_fixed_tz).into())
-                }
-                FieldType::DateTime(ref options) => {
-                    let date_time = options.parse_string(field_text.clone()).map_err(|error| {
-                        ValueParsingError::ParseError {
-                            error,
+                            })?;
+                        Ok(DateTime::from_utc(dt_with_fixed_tz).into())
+                    }
+                    FieldType::Str(_) => Ok(Value::Str(field_text)),
+                    FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
+                        Err(ValueParsingError::TypeError {
+                            expected: "an integer",
                             json: JsonValue::String(field_text),
-                        }
-                    })?;
-                    Ok(Value::DateTime(PreciseDateTime(
-                        DateTime::from_utc_with_precision(date_time, options.get_precision()),
-                    )))
-                }
-                FieldType::Str(_) => Ok(Value::Str(field_text)),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "an integer",
+                        })
+                    }
+                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                        expected: "a boolean",
                         json: JsonValue::String(field_text),
-                    })
+                    }),
+                    FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
+                    FieldType::Bytes(_) => base64::decode(&field_text)
+                        .map(Value::Bytes)
+                        .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
+                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                        expected: "a json object",
+                        json: JsonValue::String(field_text),
+                    }),
                 }
-                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
-                    expected: "a boolean",
-                    json: JsonValue::String(field_text),
-                }),
-                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(&field_text))),
-                FieldType::Bytes(_) => base64::decode(&field_text)
-                    .map(Value::Bytes)
-                    .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                    expected: "a json object",
-                    json: JsonValue::String(field_text),
-                }),
-            },
+            }
             JsonValue::Number(field_val_num) => match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(Value::I64(field_val_i64))
-                    } else {
-                        Err(ValueParsingError::OverflowError {
-                            expected: "an i64 int",
-                            json: JsonValue::Number(field_val_num),
-                        })
-                    }
-                }
-                FieldType::DateTime(options) => {
-                    if let Some(field_val_i64) = field_val_num.as_i64() {
-                        let date_time = options.parse_number(field_val_i64).map_err(|error| {
-                            ValueParsingError::ParseError {
-                                error,
-                                json: JsonValue::Number(field_val_num),
-                            }
-                        })?;
-                        Ok(Value::DateTime(PreciseDateTime(
-                            DateTime::from_utc_with_precision(date_time, options.get_precision()),
-                        )))
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "an i64 int",
@@ -441,10 +400,10 @@ mod tests {
 
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::{DateTimeOptions, Schema, TextOptions, Type, Value, INDEXED};
+    use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
-    use crate::{DateTime, DateTimePrecision, Document};
+    use crate::{DateTime, Document};
 
     #[test]
     fn test_deserialize_json_date() {
@@ -454,49 +413,8 @@ mod tests {
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = schema.parse_document(doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
-        // Time zone is converted to UTC and subseconds are discarded
-        assert_eq!(
-            "Date(DateTime { timestamp: 1570857650, precision: Seconds })",
-            format!("{:?}", date)
-        );
-    }
-
-    #[test]
-    fn test_deserialize_json_date_time() {
-        let mut schema_builder = Schema::builder();
-        let dt_millis = schema_builder.add_datetime_field("dt_millis", INDEXED);
-        let dt_secs = schema_builder.add_datetime_field(
-            "dt_secs",
-            DateTimeOptions::from(INDEXED).set_precision(DateTimePrecision::Seconds),
-        );
-        let dt_nanos = schema_builder.add_datetime_field(
-            "dt_nanos",
-            DateTimeOptions::from(INDEXED).set_precision(DateTimePrecision::Nanoseconds),
-        );
-        let schema = schema_builder.build();
-        let doc_json = r#"{
-            "dt_millis": "2019-10-12T07:20:50.52+02:00",
-            "dt_secs": "2019-10-12T07:20:50.52+02:00",
-            "dt_nanos": "2019-10-12T07:20:50.52+02:00"
-        }"#;
-        let doc = schema.parse_document(doc_json).unwrap();
-        let date_time = doc.get_first(dt_millis).unwrap();
-        assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650520, precision: Milliseconds })",
-            format!("{:?}", date_time)
-        );
-
-        let date_time = doc.get_first(dt_secs).unwrap();
-        assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650, precision: Seconds })",
-            format!("{:?}", date_time)
-        );
-
-        let date_time = doc.get_first(dt_nanos).unwrap();
-        assert_eq!(
-            "DateTime(DateTime { timestamp: 1570857650520000000, precision: Nanoseconds })",
-            format!("{:?}", date_time)
-        );
+        // Time zone is converted to UTC
+        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{:?}", date));
     }
 
     #[test]

@@ -270,7 +270,7 @@ impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
                     .get_field_writer_mut(field)
                     .expect("With a RamDirectory, this should never fail.");
                 for val in vals {
-                    fast_field_writer.add_val(val.to_u64());
+                    fast_field_writer.add_val(val.to_u64(None));
                 }
             }
             fast_field_writers

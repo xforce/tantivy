@@ -5,7 +5,7 @@ use std::{fmt, str};
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
-use crate::{DateTime, PreciseDateTime};
+use crate::DateTime;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
@@ -50,7 +50,7 @@ impl Term {
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
         let mut term = Term(vec![0u8; FAST_VALUE_TERM_LEN]);
         term.set_field(T::to_type(), field);
-        term.set_u64(val.to_u64());
+        term.set_u64(val.to_u64(None));
         term
     }
 
@@ -76,11 +76,6 @@ impl Term {
 
     /// Builds a term given a field, and a DateTime value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
-        Term::from_fast_value(field, &val)
-    }
-
-    /// Builds a term given a field, and a PreciseDateTime value
-    pub fn from_field_precise_date_time(field: Field, val: PreciseDateTime) -> Term {
         Term::from_fast_value(field, &val)
     }
 
@@ -127,7 +122,7 @@ impl Term {
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.0.resize(FAST_VALUE_TERM_LEN, 0u8);
-        self.set_bytes(val.to_u64().to_be_bytes().as_ref());
+        self.set_bytes(val.to_u64(None).to_be_bytes().as_ref());
     }
 
     /// Sets a `i64` value in the term.
@@ -400,10 +395,6 @@ fn debug_value_bytes(typ: Type, bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Re
         }
         // TODO pretty print these types too.
         Type::Date => {
-            write_opt(f, get_fast_type::<DateTime>(bytes))?;
-        }
-        Type::DateTime => {
-            // TODO-evan: show in a format
             write_opt(f, get_fast_type::<DateTime>(bytes))?;
         }
         Type::Facet => {

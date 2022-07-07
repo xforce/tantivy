@@ -5,7 +5,7 @@ use crate::fastfield::{
 };
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
-use crate::{DateTime, PreciseDateTime, TantivyError};
+use crate::{DateTime, TantivyError};
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///
@@ -23,7 +23,6 @@ pub(crate) enum FastType {
     F64,
     Bool,
     Date,
-    DateTime,
 }
 
 pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
@@ -43,9 +42,6 @@ pub(crate) fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, 
         FieldType::Date(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
-        FieldType::DateTime(options) => options
-            .get_fastfield_cardinality()
-            .map(|cardinality| (FastType::DateTime, cardinality)),
         FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
         FieldType::Str(options) if options.is_fast() => {
             Some((FastType::U64, Cardinality::MultiValues))
@@ -166,14 +162,6 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `datetime` fast field reader reader associated to `field`.
-    ///
-    /// If `field` is not a date fast field, this method returns an Error.
-    pub fn datetime(&self, field: Field) -> crate::Result<DynamicFastFieldReader<PreciseDateTime>> {
-        self.check_type(field, FastType::DateTime, Cardinality::SingleValue)?;
-        self.typed_fast_field_reader(field)
-    }
-
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
@@ -237,19 +225,6 @@ impl FastFieldReaders {
     /// Error.
     pub fn dates(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::MultiValues)?;
-        self.typed_fast_field_multi_reader(field)
-    }
-
-    /// Returns a `PreciseDateTime` multi-valued fast field reader reader associated to
-    /// `field`.
-    ///
-    /// If `field` is not a DateTime multi-valued fast field, this method returns an
-    /// Error.
-    pub fn datetimes(
-        &self,
-        field: Field,
-    ) -> crate::Result<MultiValuedFastFieldReader<PreciseDateTime>> {
-        self.check_type(field, FastType::DateTime, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
     }
 

@@ -134,36 +134,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_date_field<T: Into<NumericOptions>>(
+    pub fn add_date_field<T: Into<DateOptions>>(
         &mut self,
         field_name_str: &str,
         field_options: T,
     ) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_date(field_name, field_options.into());
-        self.add_field(field_entry)
-    }
-
-    /// Adds a new DateTime field.
-    /// Returns the associated field handle
-    /// Internally, Tantivy simply stores DateTime as i64 UTC timestamps,
-    /// with (seconds, milliseconds, microseconds, nanoseconds) precision,
-    /// while the user supplies DateTime values in supported format for convenience.
-    ///
-    /// # Caution
-    ///
-    /// Appending two fields with the same name
-    /// will result in the shadowing of the first
-    /// by the second one.
-    /// The first field will get a field id
-    /// but only the second one will be indexed
-    pub fn add_datetime_field<T: Into<DateTimeOptions>>(
-        &mut self,
-        field_name_str: &str,
-        field_options: T,
-    ) -> Field {
-        let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_datetime(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -836,7 +813,7 @@ mod tests {
                 .set_tokenizer("raw")
                 .set_index_option(IndexRecordOption::Basic),
         );
-        let timestamp_options = NumericOptions::default()
+        let timestamp_options = DateOptions::default()
             .set_stored()
             .set_indexed()
             .set_fieldnorm()
@@ -898,7 +875,8 @@ mod tests {
       "indexed": true,
       "fieldnorms": true,
       "fast": "single",
-      "stored": true
+      "stored": true,
+      "precision": "Seconds"
     }
   },
   {

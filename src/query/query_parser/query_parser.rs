@@ -20,7 +20,7 @@ use crate::schema::{
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{DateTime, PreciseDateTime, Score};
+use crate::{DateTime, Score};
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -81,9 +81,6 @@ pub enum QueryParserError {
     /// The format for the date field is not RFC 3339 compliant.
     #[error("The date field has an invalid format")]
     DateFormatError(#[from] time::error::Parse),
-    /// The format for the datetime field is not compliant with provide field options.
-    #[error("The datetime field has an invalid format")]
-    DateTimeFormatError(String),
     /// The format for the facet field is invalid.
     #[error("The facet field is malformed: {0}")]
     FacetFormatError(#[from] FacetParseError),
@@ -361,28 +358,6 @@ impl QueryParser {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
                 Ok(Term::from_field_date(field, DateTime::from_utc(dt)))
             }
-            FieldType::DateTime(ref options) => {
-                let dt = options
-                    .parse_string(phrase.to_string())
-                    .or_else(|_| {
-                        i64::from_str(phrase)
-                            .map_err(|error| error.to_string())
-                            .and_then(|value| options.parse_number(value))
-                    })
-                    .map_err(|_| {
-                        QueryParserError::DateTimeFormatError(format!(
-                            "Could not parse `{}` into a valide datetime",
-                            phrase
-                        ))
-                    })?;
-                Ok(Term::from_field_precise_date_time(
-                    field,
-                    PreciseDateTime(DateTime::from_utc_with_precision(
-                        dt,
-                        options.get_precision(),
-                    )),
-                ))
-            }
             FieldType::Str(ref str_options) => {
                 let option = str_options.get_indexing_options().ok_or_else(|| {
                     // This should have been seen earlier really.
@@ -467,22 +442,6 @@ impl QueryParser {
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
                 let dt_term = Term::from_field_date(field, DateTime::from_utc(dt));
-                Ok(vec![LogicalLiteral::Term(dt_term)])
-            }
-            FieldType::DateTime(ref options) => {
-                let utc_datetime = if let Ok(number_i64) = i64::from_str(phrase) {
-                    options.parse_number(number_i64)
-                } else {
-                    options.parse_string(phrase.to_string())
-                }
-                .map_err(QueryParserError::DateTimeFormatError)?;
-                let dt_term = Term::from_field_precise_date_time(
-                    field,
-                    PreciseDateTime(DateTime::from_utc_with_precision(
-                        utc_datetime,
-                        options.get_precision(),
-                    )),
-                );
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
@@ -853,7 +812,6 @@ mod test {
         schema_builder.add_json_field("json_not_indexed", STORED);
         schema_builder.add_bool_field("bool", INDEXED);
         schema_builder.add_bool_field("notindexed_bool", STORED);
-        schema_builder.add_datetime_field("datetime", INDEXED);
         schema_builder.build()
     }
 
@@ -1102,10 +1060,9 @@ mod test {
 
     #[test]
     fn test_json_field_possibly_a_date() {
-        // Subseconds are discarded
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(type=Json, field=14, path=date, vtype=Date, DateTime { timestamp: 1570864850, precision: Seconds }) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
+            r#"(Term(type=Json, field=14, path=date, vtype=Date, 2019-10-12T07:20:50.52Z) "[(0, Term(type=Json, field=14, path=date, vtype=Str, "2019")), (1, Term(type=Json, field=14, path=date, vtype=Str, "10")), (2, Term(type=Json, field=14, path=date, vtype=Str, "12t07")), (3, Term(type=Json, field=14, path=date, vtype=Str, "20")), (4, Term(type=Json, field=14, path=date, vtype=Str, "50")), (5, Term(type=Json, field=14, path=date, vtype=Str, "52z"))]")"#,
             true,
         );
     }
@@ -1389,21 +1346,8 @@ mod test {
         assert!(query_parser
             .parse_query("date:\"1985-04-12T23:20:50.52Z\"")
             .is_ok());
-    }
-
-    #[test]
-    pub fn test_query_parser_expected_date_time() {
-        let query_parser = make_query_parser();
-        assert_matches!(
-            query_parser.parse_query("datetime:18a"),
-            Err(QueryParserError::DateTimeFormatError(_))
-        );
-        assert!(query_parser.parse_query("datetime:1655896764029").is_ok());
         assert!(query_parser
-            .parse_query("datetime:\"2010-11-21T09:55:06.000000000+02:00\"")
-            .is_ok());
-        assert!(query_parser
-            .parse_query("datetime:\"1985-04-12T23:20:50.52Z\"")
+            .parse_query("date:\"2010-11-21T09:55:06.000000000+02:00\"")
             .is_ok());
     }
 
