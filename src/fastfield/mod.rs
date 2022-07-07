@@ -63,6 +63,8 @@ pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.
+    // Optionally accepting field_type param because some field options
+    // could carry info on how the value should be internally treated.
     fn to_u64(&self, field_type: Option<&FieldType>) -> u64;
 
     /// Returns the fast field cardinality that can be extracted from the given
@@ -219,7 +221,7 @@ impl FastValue for DateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.into_timestamp_micros() as u64
+        self.into_timestamp_micros().as_u64()
     }
 
     fn to_type() -> Type {
@@ -835,70 +837,6 @@ mod tests {
         }
         Ok(())
     }
-
-    // #[test]
-    // fn test_date_time_fast_field() -> crate::Result<()> {
-    //     let mut schema_builder = Schema::builder();
-    //     let options = DateTimeOptions::from(FAST)
-    //         .set_precision(DateTimePrecision::Milliseconds);
-    //     let date_time_field = schema_builder.add_datetime_field("datetime", options);
-    //     let multi_date_time_field = schema_builder.add_datetime_field(
-    //         "multi_datetime",
-    //         DateTimeOptions::default().set_fast(Cardinality::MultiValues),
-    //     );
-    //     let schema = schema_builder.build();
-    //     let index = Index::create_in_ram(schema);
-    //     let mut index_writer = index.writer_for_tests()?;
-    //     index_writer.set_merge_policy(Box::new(NoMergePolicy));
-    //     index_writer.add_document(doc!(
-    //         date_time_field => DateTimeWithPrecision::from_timestamp_with_precision(1i64,
-    // DateTimePrecision::Milliseconds),         multi_date_time_field =>
-    // DateTimeWithPrecision::from_timestamp_with_precision(2i64, DateTimePrecision::Milliseconds),
-    //         multi_date_time_field => DateTimeWithPrecision::from_timestamp_with_precision(3i64,
-    // DateTimePrecision::Milliseconds)     ))?;
-    //     index_writer.add_document(doc!(
-    //         date_time_field => DateTimeWithPrecision::from_timestamp_with_precision(4i64,
-    // DateTimePrecision::Milliseconds)     ))?;
-    //     index_writer.add_document(doc!(
-    //         multi_date_time_field => DateTimeWithPrecision::from_timestamp_with_precision(5i64,
-    // DateTimePrecision::Milliseconds),         multi_date_time_field =>
-    // DateTimeWithPrecision::from_timestamp_with_precision(6i64, DateTimePrecision::Milliseconds)
-    //     ))?;
-    //     index_writer.commit()?;
-    //     let reader = index.reader()?;
-    //     let searcher = reader.searcher();
-    //     assert_eq!(searcher.segment_readers().len(), 1);
-    //     let segment_reader = searcher.segment_reader(0);
-    //     let fast_fields = segment_reader.fast_fields();
-    //     let date_fast_field = fast_fields.datetime(date_time_field).unwrap();
-    //     let dates_fast_field = fast_fields.datetimes(multi_date_time_field).unwrap();
-    //     let mut dates = vec![];
-    //     {
-    //         let v = date_fast_field.get(0u32);
-    //         println!("{:?}", v);
-    //         assert_eq!(date_fast_field.get(0u32).into_unix_timestamp(), 1i64);
-
-    //         dates_fast_field.get_vals(0u32, &mut dates);
-    //         assert_eq!(dates.len(), 2);
-    //         assert_eq!(dates[0].into_unix_timestamp(), 2i64);
-    //         assert_eq!(dates[1].into_unix_timestamp(), 3i64);
-    //     }
-    //     {
-    //         assert_eq!(date_fast_field.get(1u32).into_unix_timestamp(), 4i64);
-    //         dates_fast_field.get_vals(1u32, &mut dates);
-    //         assert!(dates.is_empty());
-    //     }
-    //     {
-    //         assert_eq!(date_fast_field.get(2u32).into_unix_timestamp(), 0i64);
-    //         dates_fast_field.get_vals(2u32, &mut dates);
-    //         assert_eq!(dates.len(), 2);
-    //         assert_eq!(dates[0].into_unix_timestamp(), 5i64);
-    //         assert_eq!(dates[1].into_unix_timestamp(), 6i64);
-    //         println!("{:?}", dates[1].precision);
-    //         assert_eq!(dates[1].precision, DateTimePrecision::Milliseconds);
-    //     }
-    //     Ok(())
-    // }
 
     #[test]
     pub fn test_fastfield_bool() {

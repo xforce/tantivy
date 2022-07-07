@@ -203,8 +203,6 @@ pub(crate) fn convert_to_fast_value_and_get_term(
     json_term_writer: &mut JsonTermWriter,
     phrase: &str,
 ) -> Option<Term> {
-    // TODO:  How should we handle DateTime in json
-    // since no schema is provided?
     if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
         let dt_utc = dt.to_offset(UtcOffset::UTC);
         return Some(set_fastvalue_and_get_term(

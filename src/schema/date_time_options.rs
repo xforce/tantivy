@@ -7,14 +7,13 @@ use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// DateTime Precision
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[repr(u8)]
 pub enum DatePrecision {
     /// Seconds precision
-    Seconds = 0,
+    Seconds,
     /// Milli-seconds precision.
-    Milliseconds = 1,
+    Milliseconds,
     /// Micro-seconds precision.
-    Microseconds = 2,
+    Microseconds,
 }
 
 impl Default for DatePrecision {
@@ -32,8 +31,8 @@ pub struct DateOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     fast: Option<Cardinality>,
     stored: bool,
-    // Internal storage precision, used to optimize
-    // storage compression on fast field.
+    // Internal storage precision, used to optimize storage
+    // compression on fast fields.
     #[serde(default)]
     precision: DatePrecision,
 }
@@ -134,8 +133,8 @@ impl DateOptions {
 
     /// Sets the precision for this DateTime field.
     ///
-    /// Internal storage precision: Used to avoid storing
-    /// very large numbers when not needed. This optimizes compression.
+    /// Internal storage precision, used to optimize storage
+    /// compression on fast fields.
     pub fn set_precision(mut self, precision: DatePrecision) -> DateOptions {
         self.precision = precision;
         self
@@ -143,8 +142,8 @@ impl DateOptions {
 
     /// Returns the storage precision for this DateTime field.
     ///
-    /// Internal storage precision: Used to avoid storing
-    /// very large numbers when not needed. This optimizes compression.
+    /// Internal storage precision, used to optimize storage
+    /// compression on fast fields.
     pub fn get_precision(&self) -> DatePrecision {
         self.precision
     }

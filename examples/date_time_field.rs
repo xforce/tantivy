@@ -31,7 +31,7 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc)?;
     let doc = schema.parse_document(
         r#"{
-        "occurred_at": "2022-06-22T13:00:00.20Z",
+        "occurred_at": "2022-06-22T13:00:00.22Z",
         "event": "comment"
     }"#,
     )?;
@@ -49,18 +49,19 @@ fn main() -> tantivy::Result<()> {
         assert_eq!(count_docs.len(), 1);
     }
     {
-        // Since we indexed dates with a precision of seconds, we can query
-        // equality on dates with seconds precision.
-        let query = query_parser.parse_query("occurred_at:\"2022-06-22 13:00:00\"")?;
+        let query = query_parser
+            .parse_query(r#"occurred_at:[2022-06-22T12:58:00Z TO 2022-06-23T00:00:00Z}"#)?;
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(4))?;
         assert_eq!(count_docs.len(), 1);
         for (_score, doc_address) in count_docs {
             let retrieved_doc = searcher.doc(doc_address)?;
-            assert!(matches!(retrieved_doc.get_first(occurred_at),
-                Some(Value::Date(dt)) if dt.into_timestamp_micros() == 12i64));
+            assert!(matches!(
+                retrieved_doc.get_first(occurred_at),
+                Some(Value::Date(_))
+            ));
             assert_eq!(
                 schema.to_json(&retrieved_doc),
-                r#"{"event":["comment"],"occurred_at":["2022-06-22T13:00:00Z"]}"#
+                r#"{"event":["comment"],"occurred_at":["2022-06-22T13:00:00.22Z"]}"#
             );
         }
     }

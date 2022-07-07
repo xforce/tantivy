@@ -251,7 +251,7 @@ impl<'a> From<&'a [u8]> for Value {
     }
 }
 
-impl<'a> From<Facet> for Value {
+impl From<Facet> for Value {
     fn from(facet: Facet) -> Value {
         Value::Facet(facet)
     }

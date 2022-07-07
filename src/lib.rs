@@ -145,7 +145,7 @@ use crate::time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 /// to prevent unintended usage.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
-    // timestamp in microseconds
+    // Timestamp in microseconds.
     pub(crate) timestamp_micros: i64,
 }
 
