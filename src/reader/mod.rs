@@ -2,8 +2,9 @@ mod warming;
 
 use std::convert::TryInto;
 use std::sync::atomic::AtomicU64;
-use std::sync::{atomic, Arc, Mutex, Weak};
+use std::sync::{atomic, Arc, Weak};
 
+use arc_swap::ArcSwap;
 pub use warming::Warmer;
 
 use self::warming::WarmingState;
@@ -153,7 +154,7 @@ struct InnerIndexReader {
     doc_store_cache_size: usize,
     index: Index,
     warming_state: WarmingState,
-    searcher: Mutex<Searcher>,
+    searcher: arc_swap::ArcSwap<Searcher>,
     searcher_generation_counter: Arc<AtomicU64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
@@ -183,7 +184,7 @@ impl InnerIndexReader {
             doc_store_cache_size,
             index,
             warming_state,
-            searcher: Mutex::new(searcher),
+            searcher: ArcSwap::from(Arc::new(searcher)),
             searcher_generation_counter,
             searcher_generation_inventory,
         })
@@ -247,16 +248,13 @@ impl InnerIndexReader {
             searcher_generation,
         )?;
 
-        {
-            let mut old_searcher = self.searcher.lock().unwrap();
-            *old_searcher = searcher;
-        }
+        self.searcher.store(Arc::new(searcher));
 
         Ok(())
     }
 
-    fn searcher(&self) -> Searcher {
-        self.searcher.lock().unwrap().clone()
+    fn searcher(&self) -> Arc<Searcher> {
+        self.searcher.load().clone()
     }
 }
 
@@ -302,7 +300,7 @@ impl IndexReader {
     ///
     /// The same searcher must be used for a given query, as it ensures
     /// the use of a consistent segment set.
-    pub fn searcher(&self) -> Searcher {
+    pub fn searcher(&self) -> Arc<Searcher> {
         self.inner.searcher()
     }
 }
