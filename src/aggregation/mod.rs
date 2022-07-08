@@ -308,8 +308,8 @@ pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &Type) -> f64 {
 pub(crate) fn f64_to_fastfield_u64(val: f64, field_type: &Type) -> Option<u64> {
     match field_type {
         Type::U64 => Some(val as u64),
-        Type::I64 => Some((val as i64).to_u64(None)),
-        Type::F64 => Some(val.to_u64(None)),
+        Type::I64 => Some((val as i64).to_u64()),
+        Type::F64 => Some(val.to_u64()),
         _ => None,
     }
 }

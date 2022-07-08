@@ -4,12 +4,12 @@ use fnv::FnvHashMap;
 use tantivy_bitpacker::minmax;
 
 use crate::fastfield::serializer::BitpackedFastFieldSerializerLegacy;
-use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType};
+use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer, FastFieldType, FastValue};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
-use crate::schema::{Document, Field, FieldType};
+use crate::schema::{Document, Field, Value};
 use crate::termdict::TermOrdinal;
-use crate::DocId;
+use crate::{DatePrecision, DateTime, DocId};
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -36,7 +36,7 @@ use crate::DocId;
 /// term ids when the segment is getting serialized.
 pub struct MultiValuedFastFieldWriter {
     field: Field,
-    field_type: FieldType,
+    precision_opt: Option<DatePrecision>,
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
     fast_field_type: FastFieldType,
@@ -44,10 +44,14 @@ pub struct MultiValuedFastFieldWriter {
 
 impl MultiValuedFastFieldWriter {
     /// Creates a new `MultiValuedFastFieldWriter`
-    pub(crate) fn new(field: Field, fast_field_type: FastFieldType, field_type: FieldType) -> Self {
+    pub(crate) fn new(
+        field: Field,
+        fast_field_type: FastFieldType,
+        precision_opt: Option<DatePrecision>,
+    ) -> Self {
         MultiValuedFastFieldWriter {
             field,
-            field_type,
+            precision_opt,
             vals: Vec::new(),
             doc_index: Vec::new(),
             fast_field_type,
@@ -85,7 +89,15 @@ impl MultiValuedFastFieldWriter {
         }
         for field_value in doc.field_values() {
             if field_value.field == self.field {
-                self.add_val(value_to_u64(field_value.value(), &self.field_type));
+                let value = field_value.value();
+                let value_u64 = match (self.precision_opt, value) {
+                    (Some(precision), Value::Date(DateTime { timestamp_micros })) => {
+                        let truncated_micros = precision.truncate(*timestamp_micros);
+                        truncated_micros.to_u64()
+                    }
+                    _ => value_to_u64(value),
+                };
+                self.add_val(value_u64);
             }
         }
     }

@@ -461,14 +461,14 @@ mod tests {
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
-        assert_eq!(buckets[0].range.end, 10f64.to_u64(None));
-        assert_eq!(buckets[1].range.start, 10f64.to_u64(None));
-        assert_eq!(buckets[1].range.end, 20f64.to_u64(None));
+        assert_eq!(buckets[0].range.end, 10f64.to_u64());
+        assert_eq!(buckets[1].range.start, 10f64.to_u64());
+        assert_eq!(buckets[1].range.end, 20f64.to_u64());
         // Added bucket to fill hole
-        assert_eq!(buckets[2].range.start, 20f64.to_u64(None));
-        assert_eq!(buckets[2].range.end, 30f64.to_u64(None));
-        assert_eq!(buckets[3].range.start, 30f64.to_u64(None));
-        assert_eq!(buckets[3].range.end, 40f64.to_u64(None));
+        assert_eq!(buckets[2].range.start, 20f64.to_u64());
+        assert_eq!(buckets[2].range.end, 30f64.to_u64());
+        assert_eq!(buckets[3].range.start, 30f64.to_u64());
+        assert_eq!(buckets[3].range.end, 40f64.to_u64());
     }
 
     #[test]
@@ -484,10 +484,10 @@ mod tests {
 
         let buckets = collector.buckets;
         assert_eq!(buckets[0].range.start, u64::MIN);
-        assert_eq!(buckets[0].range.end, 10f64.to_u64(None));
-        assert_eq!(buckets[1].range.start, 10f64.to_u64(None));
-        assert_eq!(buckets[1].range.end, 20f64.to_u64(None));
-        assert_eq!(buckets[2].range.start, 20f64.to_u64(None));
+        assert_eq!(buckets[0].range.end, 10f64.to_u64());
+        assert_eq!(buckets[1].range.start, 10f64.to_u64());
+        assert_eq!(buckets[1].range.end, 20f64.to_u64());
+        assert_eq!(buckets[2].range.start, 20f64.to_u64());
         assert_eq!(buckets[2].range.end, u64::MAX);
         assert_eq!(buckets.len(), 3);
     }
@@ -561,11 +561,11 @@ mod tests {
         let search = |val: u64| collector.get_bucket_pos(val);
 
         assert_eq!(search(u64::MIN), 0);
-        assert_eq!(search(9f64.to_u64(None)), 0);
-        assert_eq!(search(10f64.to_u64(None)), 1);
-        assert_eq!(search(11f64.to_u64(None)), 1);
-        assert_eq!(search(99f64.to_u64(None)), 1);
-        assert_eq!(search(100f64.to_u64(None)), 2);
+        assert_eq!(search(9f64.to_u64()), 0);
+        assert_eq!(search(10f64.to_u64()), 1);
+        assert_eq!(search(11f64.to_u64()), 1);
+        assert_eq!(search(99f64.to_u64()), 1);
+        assert_eq!(search(100f64.to_u64()), 2);
         assert_eq!(search(u64::MAX - 1), 2); // Since the end range is never included,
                                              // the max value
     }

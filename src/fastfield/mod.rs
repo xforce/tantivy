@@ -31,7 +31,7 @@ pub(crate) use self::readers::{type_and_cardinality, FastType};
 pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::{Cardinality, FieldType, Type, Value};
-use crate::{DatePrecision, DateTime, DocId};
+use crate::{DateTime, DocId};
 
 mod alive_bitset;
 mod bytes;
@@ -58,14 +58,26 @@ pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
     /// Converts a value from u64
     ///
     /// Internally all fast field values are encoded as u64.
+    /// **Note: To be used for converting encoded Term, Posting values.**
     fn from_u64(val: u64) -> Self;
+
+    /// Converts a value from encoded u64 FastValue.
+    ///
+    /// Internally all fast field values are encoded as u64.
+    /// **Note: To be used for converting encoded FastField values.**
+    fn from_u64_fast(val: u64) -> Self {
+        Self::from_u64(val)
+    }
 
     /// Converts a value to u64.
     ///
     /// Internally all fast field values are encoded as u64.
-    // Optionally accepting field_type param because some field options
-    // could carry info on how the value should be internally treated.
-    fn to_u64(&self, field_type: Option<&FieldType>) -> u64;
+    fn to_u64(&self) -> u64;
+
+    /// Converts a value to u64 for encoding FastValue.
+    fn to_u64_fast(&self) -> u64 {
+        self.to_u64()
+    }
 
     /// Returns the fast field cardinality that can be extracted from the given
     /// `FieldType`.
@@ -80,7 +92,7 @@ pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {
     /// Build a default value. This default value is never used, so the value does not
     /// really matter.
     fn make_zero() -> Self {
-        Self::from_u64(0i64.to_u64(None))
+        Self::from_u64(0i64.to_u64())
     }
 
     /// Returns the `schema::Type` for this FastValue.
@@ -92,7 +104,7 @@ impl FastValue for u64 {
         val
     }
 
-    fn to_u64(&self, _: Option<&FieldType>) -> u64 {
+    fn to_u64(&self) -> u64 {
         *self
     }
 
@@ -118,7 +130,7 @@ impl FastValue for i64 {
         common::u64_to_i64(val)
     }
 
-    fn to_u64(&self, _: Option<&FieldType>) -> u64 {
+    fn to_u64(&self) -> u64 {
         common::i64_to_u64(*self)
     }
 
@@ -143,7 +155,7 @@ impl FastValue for f64 {
         common::u64_to_f64(val)
     }
 
-    fn to_u64(&self, _: Option<&FieldType>) -> u64 {
+    fn to_u64(&self) -> u64 {
         common::f64_to_u64(*self)
     }
 
@@ -168,7 +180,7 @@ impl FastValue for bool {
         val != 0u64
     }
 
-    fn to_u64(&self, _: Option<&FieldType>) -> u64 {
+    fn to_u64(&self) -> u64 {
         match self {
             false => 0,
             true => 1,
@@ -192,25 +204,30 @@ impl FastValue for bool {
 }
 
 impl FastValue for DateTime {
-    /// Converts a timestamp microsecond into DateTime.
+    /// Converts a timestamp seconds into DateTime.
+    ///
+    /// **Note the timestamps is expected to be in seconds.**
+    fn from_u64(timestamp_seconds_u64: u64) -> Self {
+        let timestamp_seconds = i64::from_u64(timestamp_seconds_u64);
+        Self::from_timestamp_secs(timestamp_seconds)
+    }
+
+    /// Converts a timestamp microseconds into DateTime.
     ///
     /// **Note the timestamps is expected to be in microseconds.**
-    fn from_u64(timestamp_micros_u64: u64) -> Self {
+    fn from_u64_fast(timestamp_micros_u64: u64) -> Self {
         let timestamp_micros = i64::from_u64(timestamp_micros_u64);
         Self::from_timestamp_micros(timestamp_micros)
     }
 
-    fn to_u64(&self, field_type: Option<&FieldType>) -> u64 {
-        let timestamp_micros = self.into_timestamp_micros();
-        let value = match field_type {
-            Some(FieldType::Date(options)) => match options.get_precision() {
-                DatePrecision::Seconds => (timestamp_micros / 1_000_000) * 1_000_000,
-                DatePrecision::Milliseconds => (timestamp_micros / 1_000) * 1_000,
-                DatePrecision::Microseconds => timestamp_micros,
-            },
-            _ => timestamp_micros,
-        };
-        common::i64_to_u64(value)
+    /// For terms and posting list, we only use the second precision.
+    fn to_u64(&self) -> u64 {
+        common::i64_to_u64(self.into_timestamp_secs())
+    }
+
+    /// For fast fields, we use the microsecond precision.
+    fn to_u64_fast(&self) -> u64 {
+        common::i64_to_u64(self.into_timestamp_micros())
     }
 
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
@@ -221,7 +238,7 @@ impl FastValue for DateTime {
     }
 
     fn as_u64(&self) -> u64 {
-        self.into_timestamp_micros().as_u64()
+        self.into_timestamp_secs().as_u64()
     }
 
     fn to_type() -> Type {
@@ -229,13 +246,13 @@ impl FastValue for DateTime {
     }
 }
 
-fn value_to_u64(value: &Value, field_type: &FieldType) -> u64 {
+fn value_to_u64(value: &Value) -> u64 {
     match value {
-        Value::U64(val) => val.to_u64(None),
-        Value::I64(val) => val.to_u64(None),
-        Value::F64(val) => val.to_u64(None),
-        Value::Bool(val) => val.to_u64(None),
-        Value::Date(val) => val.to_u64(Some(field_type)),
+        Value::U64(val) => val.to_u64(),
+        Value::I64(val) => val.to_u64(),
+        Value::F64(val) => val.to_u64(),
+        Value::Bool(val) => val.to_u64(),
+        Value::Date(val) => val.to_u64(),
         _ => panic!("Expected a u64/i64/f64/bool/date field, got {:?} ", value),
     }
 }
@@ -299,7 +316,7 @@ mod tests {
     #[test]
     pub fn test_fastfield_i64_u64() {
         let datetime = DateTime::from_utc(OffsetDateTime::UNIX_EPOCH);
-        assert_eq!(i64::from_u64(datetime.to_u64(None)), 0i64);
+        assert_eq!(i64::from_u64(datetime.to_u64()), 0i64);
     }
 
     #[test]
@@ -796,16 +813,16 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!(
-            date_field => DateTime::from_u64(1i64.to_u64(None)),
-            multi_date_field => DateTime::from_u64(2i64.to_u64(None)),
-            multi_date_field => DateTime::from_u64(3i64.to_u64(None))
+            date_field => DateTime::from_u64(1i64.to_u64()),
+            multi_date_field => DateTime::from_u64(2i64.to_u64()),
+            multi_date_field => DateTime::from_u64(3i64.to_u64())
         ))?;
         index_writer.add_document(doc!(
-            date_field => DateTime::from_u64(4i64.to_u64(None))
+            date_field => DateTime::from_u64(4i64.to_u64())
         ))?;
         index_writer.add_document(doc!(
-            multi_date_field => DateTime::from_u64(5i64.to_u64(None)),
-            multi_date_field => DateTime::from_u64(6i64.to_u64(None))
+            multi_date_field => DateTime::from_u64(5i64.to_u64()),
+            multi_date_field => DateTime::from_u64(6i64.to_u64())
         ))?;
         index_writer.commit()?;
         let reader = index.reader()?;
@@ -817,23 +834,23 @@ mod tests {
         let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
         let mut dates = vec![];
         {
-            assert_eq!(date_fast_field.get(0u32).into_timestamp_micros(), 1i64);
+            assert_eq!(date_fast_field.get(0u32).into_timestamp_secs(), 1i64);
             dates_fast_field.get_vals(0u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_timestamp_micros(), 2i64);
-            assert_eq!(dates[1].into_timestamp_micros(), 3i64);
+            assert_eq!(dates[0].into_timestamp_secs(), 2i64);
+            assert_eq!(dates[1].into_timestamp_secs(), 3i64);
         }
         {
-            assert_eq!(date_fast_field.get(1u32).into_timestamp_micros(), 4i64);
+            assert_eq!(date_fast_field.get(1u32).into_timestamp_secs(), 4i64);
             dates_fast_field.get_vals(1u32, &mut dates);
             assert!(dates.is_empty());
         }
         {
-            assert_eq!(date_fast_field.get(2u32).into_timestamp_micros(), 0i64);
+            assert_eq!(date_fast_field.get(2u32).into_timestamp_secs(), 0i64);
             dates_fast_field.get_vals(2u32, &mut dates);
             assert_eq!(dates.len(), 2);
-            assert_eq!(dates[0].into_timestamp_micros(), 5i64);
-            assert_eq!(dates[1].into_timestamp_micros(), 6i64);
+            assert_eq!(dates[0].into_timestamp_secs(), 5i64);
+            assert_eq!(dates[1].into_timestamp_secs(), 6i64);
         }
         Ok(())
     }

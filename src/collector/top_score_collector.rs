@@ -69,7 +69,7 @@ where
         let raw_result = self.collector.merge_fruits(segment_fruits)?;
         let transformed_result = raw_result
             .into_iter()
-            .map(|(score, doc_address)| (TFastValue::from_u64(score), doc_address))
+            .map(|(score, doc_address)| (TFastValue::from_u64_fast(score), doc_address))
             .collect::<Vec<_>>();
         Ok(transformed_result)
     }

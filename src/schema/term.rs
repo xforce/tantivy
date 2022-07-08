@@ -50,7 +50,7 @@ impl Term {
     fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
         let mut term = Term(vec![0u8; FAST_VALUE_TERM_LEN]);
         term.set_field(T::to_type(), field);
-        term.set_u64(val.to_u64(None));
+        term.set_u64(val.to_u64());
         term
     }
 
@@ -77,6 +77,7 @@ impl Term {
     /// Builds a term given a field, and a DateTime value
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
         Term::from_fast_value(field, &val)
+        // Term::from_fast_value(field, &val.into_timestamp_secs())
     }
 
     /// Creates a `Term` given a facet.
@@ -122,7 +123,7 @@ impl Term {
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.0.resize(FAST_VALUE_TERM_LEN, 0u8);
-        self.set_bytes(val.to_u64(None).to_be_bytes().as_ref());
+        self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
     /// Sets a `i64` value in the term.

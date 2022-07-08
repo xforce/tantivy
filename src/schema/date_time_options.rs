@@ -7,6 +7,7 @@ use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// DateTime Precision
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DatePrecision {
     /// Seconds precision
     Seconds,
@@ -19,6 +20,17 @@ pub enum DatePrecision {
 impl Default for DatePrecision {
     fn default() -> Self {
         DatePrecision::Seconds
+    }
+}
+
+impl DatePrecision {
+    /// Truncates the microseconds value to the corresponding precision.
+    pub fn truncate(&self, timestamp_micros: i64) -> i64 {
+        match self {
+            DatePrecision::Seconds => (timestamp_micros / 1_000_000) * 1_000_000,
+            DatePrecision::Milliseconds => (timestamp_micros / 1_000) * 1_000,
+            DatePrecision::Microseconds => timestamp_micros,
+        }
     }
 }
 
@@ -40,10 +52,10 @@ pub struct DateOptions {
 impl Default for DateOptions {
     fn default() -> Self {
         Self {
-            indexed: true,
-            fieldnorms: true,
+            indexed: false,
+            fieldnorms: false,
             fast: None,
-            stored: true,
+            stored: false,
             precision: DatePrecision::default(),
         }
     }
@@ -225,9 +237,9 @@ mod tests {
     fn test_date_options_consistent_with_default() {
         let date_time_options: DateOptions = serde_json::from_str(
             r#"{
-            "indexed": true,
-            "fieldnorms": true,
-            "stored": true
+            "indexed": false,
+            "fieldnorms": false,
+            "stored": false
         }"#,
         )
         .unwrap();
@@ -242,7 +254,7 @@ mod tests {
                 "indexed": true,
                 "fieldnorms": false,
                 "stored": false,
-                "precision": "Milliseconds"
+                "precision": "milliseconds"
             }"#,
         )
         .unwrap();
@@ -251,7 +263,7 @@ mod tests {
         assert_eq!(
             date_options_json,
             serde_json::json!({
-                "precision": "Milliseconds",
+                "precision": "milliseconds",
                 "indexed": true,
                 "fieldnorms": false,
                 "stored": false
@@ -277,11 +289,11 @@ mod tests {
             "indexed": true,
             "fieldnorms": false,
             "stored": false,
-            "precision": "Hours"
+            "precision": "hours"
         }"#
         )
         .unwrap_err()
         .to_string()
-        .contains("unknown variant `Hours`"));
+        .contains("unknown variant `hours`"));
     }
 }

@@ -51,7 +51,7 @@ impl HistogramCollector {
         let fast_type = TFastValue::to_type();
         assert!(fast_type == Type::U64 || fast_type == Type::I64 || fast_type == Type::Date);
         HistogramCollector {
-            min_value: min_value.to_u64(None),
+            min_value: min_value.to_u64_fast(),
             num_buckets,
             field,
             divider: DividerU64::divide_by(bucket_width),
@@ -72,8 +72,7 @@ impl HistogramComputer {
             return;
         }
         let delta = value - self.min_value;
-        let delta_u64 = delta.to_u64(None);
-        let bucket_id: usize = self.divider.divide(delta_u64) as usize;
+        let bucket_id: usize = self.divider.divide(delta) as usize;
         if bucket_id < self.counts.len() {
             self.counts[bucket_id] += 1;
         }

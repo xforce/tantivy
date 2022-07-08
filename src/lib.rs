@@ -171,19 +171,13 @@ impl DateTime {
         }
     }
 
-    /// Create new from UNIX timestamp in nanoseconds.
-    pub const fn from_timestamp_nanos(nanoseconds: i128) -> Self {
-        Self {
-            timestamp_micros: (nanoseconds as i64 / 1_000),
-        }
-    }
-
     /// Create new from `OffsetDateTime`
     ///
     /// The given date/time is converted to UTC and the actual
     /// time zone is discarded.
     pub const fn from_utc(dt: OffsetDateTime) -> Self {
-        Self::from_timestamp_nanos(dt.unix_timestamp_nanos())
+        let timestamp_micros = dt.unix_timestamp() as i64 * 1_000_000 + dt.microsecond() as i64;
+        Self { timestamp_micros }
     }
 
     /// Create new from `PrimitiveDateTime`
@@ -191,7 +185,7 @@ impl DateTime {
     /// Implicitly assumes that the given date/time is in UTC!
     /// Otherwise the original value must only be reobtained with
     /// [`Self::into_primitive()`].
-    pub const fn from_primitive(dt: PrimitiveDateTime) -> Self {
+    pub fn from_primitive(dt: PrimitiveDateTime) -> Self {
         Self::from_utc(dt.assume_utc())
     }
 
@@ -210,14 +204,9 @@ impl DateTime {
         self.timestamp_micros
     }
 
-    /// Convert to UNIX timestamp in microseconds.
-    pub const fn into_timestamp_nanos(self) -> i64 {
-        self.timestamp_micros * 1_000
-    }
-
     /// Convert to UTC `OffsetDateTime`
     pub fn into_utc(self) -> OffsetDateTime {
-        let timestamp_nanos = (self.timestamp_micros * 1000) as i128;
+        let timestamp_nanos = self.timestamp_micros as i128 * 1000;
         let utc_datetime = OffsetDateTime::from_unix_timestamp_nanos(timestamp_nanos)
             .expect("valid UNIX timestamp");
         debug_assert_eq!(UtcOffset::UTC, utc_datetime.offset());
@@ -1158,8 +1147,18 @@ pub mod tests {
         // Constructed from a second precision.
         assert_ne!(dt.to_hms_micro(), now.to_hms_micro());
 
-        let dt = DateTime::from_timestamp_nanos(now.unix_timestamp_nanos()).into_utc();
+        let dt =
+            DateTime::from_timestamp_micros((now.unix_timestamp_nanos() / 1_000) as i64).into_utc();
         assert_eq!(dt.to_ordinal_date(), now.to_ordinal_date());
         assert_eq!(dt.to_hms_micro(), now.to_hms_micro());
+
+        let dt_from_ts_nanos =
+            OffsetDateTime::from_unix_timestamp_nanos(18446744073709551615i128).unwrap();
+        let offset_dt = DateTime::from_utc(dt_from_ts_nanos).into_utc();
+        assert_eq!(
+            dt_from_ts_nanos.to_ordinal_date(),
+            offset_dt.to_ordinal_date()
+        );
+        assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
     }
 }

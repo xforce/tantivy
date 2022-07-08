@@ -178,7 +178,7 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
     }
     #[inline]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.reader.get_u64(doc, self.bytes.as_slice()))
+        Item::from_u64_fast(self.reader.get_u64(doc, self.bytes.as_slice()))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.
@@ -238,7 +238,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn min_value(&self) -> Item {
-        Item::from_u64(self.reader.min_value())
+        Item::from_u64_fast(self.reader.min_value())
     }
 
     /// Returns the maximum value for this fast field.
@@ -247,7 +247,7 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn max_value(&self) -> Item {
-        Item::from_u64(self.reader.max_value())
+        Item::from_u64_fast(self.reader.max_value())
     }
 }
 
@@ -270,7 +270,7 @@ impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
                     .get_field_writer_mut(field)
                     .expect("With a RamDirectory, this should never fail.");
                 for val in vals {
-                    fast_field_writer.add_val(val.to_u64(None));
+                    fast_field_writer.add_val(val.to_u64_fast());
                 }
             }
             fast_field_writers
